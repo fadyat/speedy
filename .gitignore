@@ -1,0 +1,12 @@
+.idea
+postgresql_data
+postgresql_data_test
+bin
+venv
+.vscode
+*.out
+.env
+/*.csv
+/*.xls
+/*.xlsx
+/*.json
