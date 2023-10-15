@@ -5,6 +5,7 @@ bin
 venv
 .vscode
 *.out
+cover.html
 .env
 /*.csv
 /*.xls

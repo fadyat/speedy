@@ -5,10 +5,8 @@ var (
 )
 
 type Node struct {
-	key  string
-	val  string
-	prev *Node
-	next *Node
+	key, val   string
+	prev, next *Node
 }
 
 type Algorithm interface {
