@@ -1,0 +1,33 @@
+version: "3.7"
+
+services:
+  common-speedy:
+    container_name: common-speedy
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+  speedy-1:
+    hostname: speedy-1
+    container_name: speedy-1
+    extends:
+      service: common-speedy
+    ports:
+      - "8081:8080"
+
+  speedy-2:
+    hostname: speedy-2
+    container_name: speedy-2
+    extends:
+      service: common-speedy
+    ports:
+      - "8082:8080"
+
+  speedy-3:
+    hostname: speedy-3
+    container_name: speedy-3
+    extends:
+      service: common-speedy
+    ports:
+      - "8083:8080"

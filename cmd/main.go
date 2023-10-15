@@ -11,6 +11,10 @@ import (
 	"net"
 )
 
+var (
+	Version = "dev"
+)
+
 func main() {
 	initLogger()
 
@@ -37,7 +41,7 @@ func main() {
 		zap.L().Fatal("failed to create listener", zap.Error(err))
 	}
 
-	zap.L().Info("starting grpc server", zap.String("port", c.Server.GrpcPort))
+	zap.L().Info("starting grpc server", zap.String("port", c.Server.GrpcPort), zap.String("version", Version))
 	if e := s.Serve(listener); e != nil {
 		zap.L().Fatal("failed to start grpc server", zap.Error(e))
 	}
