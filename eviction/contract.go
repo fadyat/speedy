@@ -1,10 +1,7 @@
 package eviction
 
-import "errors"
-
 var (
-	noKey              string
-	ErrInvalidCapacity = errors.New("algorithm: capacity is too small")
+	noKey string
 )
 
 type Node struct {
@@ -26,5 +23,5 @@ type Algorithm interface {
 	// - If the key does not exist, it inserts the key-value pair.
 	// - If the cache is full, it evicts the least recently used item before
 	//   inserting the new key-value pair.
-	Put(key string, val string)
+	Put(key, val string)
 }
