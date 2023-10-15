@@ -1,7 +1,8 @@
 package eviction
 
 var (
-	noKey string
+	noKey          string
+	KeyNotFoundMsg = "key not found"
 )
 
 type Node struct {

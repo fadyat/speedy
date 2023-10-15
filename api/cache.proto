@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package api;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "./api";
+
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetResponse {
+    string value = 1;
+}
+
+message PutRequest {
+    string key = 1;
+    string value = 2;
+}
+
+service CacheService {
+    rpc Get (GetRequest) returns (GetResponse) {}
+    rpc Put (PutRequest) returns (google.protobuf.Empty) {}
+}
