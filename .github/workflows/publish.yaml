@@ -36,7 +36,7 @@ jobs:
       - name: build
         run: |
           docker build \
-            -f ./build/Dockerfile \
+            -f ./Dockerfile \
             -t $IMAGE_NAME \
             --build-arg VERSION=${{ env.VERSION }} \
             --label RUN_NUMBER=$GITHUB_RUN_ID .
