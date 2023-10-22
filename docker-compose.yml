@@ -3,9 +3,7 @@ version: "3.7"
 services:
   common-speedy:
     container_name: common-speedy
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/fadyat/speedy:latest
     restart: unless-stopped
 
   speedy-1:
