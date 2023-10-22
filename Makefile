@@ -39,5 +39,7 @@ proto:
 run:
 	@go run cmd/*.go
 
+runc:
+	@go run cmd/client/*.go
 
 .PHONY: lint test
