@@ -4,7 +4,13 @@ import (
 	"context"
 	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/eviction"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+var (
+	KeyNotFoundMsg = "key not found"
 )
 
 type CacheServer struct {
@@ -18,7 +24,7 @@ func (s *CacheServer) Get(_ context.Context, req *api.GetRequest) (*api.GetRespo
 		return &api.GetResponse{Value: val}, nil
 	}
 
-	return &api.GetResponse{Value: eviction.KeyNotFoundMsg}, nil
+	return nil, status.Error(codes.NotFound, KeyNotFoundMsg)
 }
 
 func (s *CacheServer) Put(_ context.Context, req *api.PutRequest) (*emptypb.Empty, error) {

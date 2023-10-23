@@ -1,3 +1,5 @@
+PORT=8080
+
 ifneq (,$(wildcard ./.env))
 	include .env
 	export
@@ -37,9 +39,12 @@ proto:
 		api/*.proto
 
 run:
-	@go run cmd/*.go
+	@export GRPC_PORT=${PORT} && go run cmd/*.go
 
 runc:
 	@go run cmd/client/*.go
+
+dev:
+	@docker-compose -f docker-compose.dev.yml up
 
 .PHONY: lint test

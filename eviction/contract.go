@@ -1,10 +1,5 @@
 package eviction
 
-var (
-	noKey          string
-	KeyNotFoundMsg = "key not found"
-)
-
 type Node struct {
 	key, val   string
 	prev, next *Node

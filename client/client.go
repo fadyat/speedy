@@ -89,7 +89,7 @@ func (c *client) Get(key string) (string, error) {
 
 	resp, err := gcl.Get(ctx, &api.GetRequest{Key: key})
 	if err != nil {
-		return "", fmt.Errorf("failed to get value from cache: %w", err)
+		return "", asClientError(err)
 	}
 
 	return resp.Value, nil

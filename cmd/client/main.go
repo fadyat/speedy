@@ -25,7 +25,7 @@ func main() {
 			log.Println("put", key, value)
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	for i := 0; i < 10; i++ {
@@ -36,16 +36,14 @@ func main() {
 			log.Println("get", v)
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// checking cache miss response
-	if v, e := dcl.Get("aboba"); e != nil {
-		log.Println("failed to get cache miss:", e)
-	} else {
-
-		// todo: we need to handle this case in client and return error
-		//  instead of returning value with error
+	if v, e := dcl.Get("aboba"); e == nil {
 		log.Println("cache miss:", v)
+		return
+	} else {
+		log.Println("unknown error:", e)
 	}
 }

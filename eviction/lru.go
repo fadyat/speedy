@@ -32,7 +32,7 @@ func (l *lru) Get(key string) (string, bool) {
 		return node.val, true
 	}
 
-	return noKey, false
+	return "", false
 }
 
 func (l *lru) promote(node *Node) {
