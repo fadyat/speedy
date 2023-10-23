@@ -1,7 +1,13 @@
-shards:
-  - host: localhost
+nodes:
+  1:
+    id: 1
+    host: localhost
     port: 8080
-  - host: localhost
+  2:
+    id: 2
+    host: localhost
     port: 8081
-  - host: localhost
+  3:
+    id: 3
+    host: localhost
     port: 8082

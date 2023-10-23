@@ -13,16 +13,13 @@ var (
 type hashFn func(key string) uint32
 
 type Shard struct {
+	ID   string `yaml:"id"`
 	Host string `yaml:"host"`
-	Port string `yaml:"port"`
-}
-
-func (s *Shard) ConnStr() string {
-	return fmt.Sprintf("%s:%s", s.Host, s.Port)
+	Port int    `yaml:"port"`
 }
 
 func (s *Shard) uniqueKey() string {
-	return fmt.Sprintf("%s:%s", s.Host, s.Port)
+	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
 type Sharding interface {
