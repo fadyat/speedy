@@ -11,7 +11,7 @@ type expensive struct {
 
 	// hash is the hash function used to determine which shard a key belongs to.
 	// Returned value will be modded by the number of shards.
-	hash func(key string) uint32
+	hash hashFn
 }
 
 func NewExpensive(

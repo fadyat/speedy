@@ -10,6 +10,8 @@ var (
 	ErrShardNotFound          = errors.New("shard not found")
 )
 
+type hashFn func(key string) uint32
+
 type Shard struct {
 	Host string `yaml:"host"`
 	Port string `yaml:"port"`
