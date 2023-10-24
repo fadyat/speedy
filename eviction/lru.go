@@ -32,7 +32,7 @@ func (l *lru) Get(key string) (string, bool) {
 		return node.val, true
 	}
 
-	return noKey, false
+	return "", false
 }
 
 func (l *lru) promote(node *Node) {
@@ -83,4 +83,11 @@ func (l *lru) evict() {
 
 	delete(l.cache, node.key)
 	l.size--
+}
+
+func (l *lru) Len() uint32 {
+	l.mx.RLock()
+	defer l.mx.RUnlock()
+
+	return uint32(l.size)
 }

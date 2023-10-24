@@ -1,7 +1,21 @@
+PORT=8080
+
 ifneq (,$(wildcard ./.env))
 	include .env
 	export
 endif
+
+recreate-tag: delete-tag create-tag
+
+create-tag:
+	@echo "Tagging version $(VERSION)"
+	@git tag -a $(VERSION) -m "Release $(VERSION)"
+	@git push origin $(VERSION)
+
+delete-tag:
+	@echo "Deleting tag $(VERSION)"
+	@git tag -d $(VERSION)
+	@git push origin --delete $(VERSION)
 
 test:
 	@go test $(FLGS) -cover ./... -coverprofile=cover.out
@@ -25,7 +39,6 @@ proto:
 		api/*.proto
 
 run:
-	@go run cmd/*.go
-
+	@export GRPC_PORT=${PORT} && go run cmd/*.go
 
 .PHONY: lint test
