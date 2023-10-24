@@ -18,4 +18,7 @@ type Algorithm interface {
 	// - If the cache is full, it evicts the least recently used item before
 	//   inserting the new key-value pair.
 	Put(key, val string)
+
+	// Len returns the number of items in the cache, included only active ones.
+	Len() uint32
 }

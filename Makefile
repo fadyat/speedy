@@ -41,10 +41,4 @@ proto:
 run:
 	@export GRPC_PORT=${PORT} && go run cmd/*.go
 
-runc:
-	@go run cmd/client/*.go
-
-dev:
-	@docker-compose -f docker-compose.dev.yml up
-
 .PHONY: lint test

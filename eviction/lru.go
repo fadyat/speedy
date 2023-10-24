@@ -84,3 +84,10 @@ func (l *lru) evict() {
 	delete(l.cache, node.key)
 	l.size--
 }
+
+func (l *lru) Len() uint32 {
+	l.mx.RLock()
+	defer l.mx.RUnlock()
+
+	return uint32(l.size)
+}

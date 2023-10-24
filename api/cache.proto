@@ -20,7 +20,12 @@ message PutRequest {
     string value = 2;
 }
 
+message LengthResponse {
+    uint32 length = 1;
+}
+
 service CacheService {
     rpc Get (GetRequest) returns (GetResponse) {}
     rpc Put (PutRequest) returns (google.protobuf.Empty) {}
+    rpc Len (google.protobuf.Empty) returns (LengthResponse) {}
 }

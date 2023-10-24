@@ -36,7 +36,7 @@ func TestLru_Get(t *testing.T) {
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
 				require.Equal(t, 0, lru.size)
-				require.Equal(t, 0, len(lru.cache))
+				require.Equal(t, uint32(0), lru.Len())
 			},
 		},
 		{

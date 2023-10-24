@@ -2,12 +2,12 @@ nodes:
   1:
     id: 1
     host: localhost
-    port: 8080
+    port: 50051
   2:
     id: 2
     host: localhost
-    port: 8081
+    port: 50052
   3:
     id: 3
     host: localhost
-    port: 8082
+    port: 50053

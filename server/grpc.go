@@ -32,6 +32,10 @@ func (s *CacheServer) Put(_ context.Context, req *api.PutRequest) (*emptypb.Empt
 	return &emptypb.Empty{}, nil
 }
 
+func (s *CacheServer) Len(_ context.Context, _ *emptypb.Empty) (*api.LengthResponse, error) {
+	return &api.LengthResponse{Length: s.cache.Len()}, nil
+}
+
 func NewCacheServer(
 	algo eviction.Algorithm,
 ) *CacheServer {
