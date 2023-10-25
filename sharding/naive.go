@@ -19,7 +19,7 @@ type naive struct {
 func NewNaive(
 	shards []*Shard,
 	hashFn func(key string) uint32,
-) Sharding {
+) Algorithm {
 	return &naive{
 		shards: shards,
 		hash:   hashFn,

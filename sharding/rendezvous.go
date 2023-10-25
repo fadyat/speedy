@@ -10,7 +10,7 @@ type rendezvous struct {
 func NewRendezvous(
 	shards []*Shard,
 	hashFn func(key string) uint32,
-) Sharding {
+) Algorithm {
 	return &rendezvous{
 		shards: shards,
 		hash:   hashFn,

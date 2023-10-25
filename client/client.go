@@ -12,21 +12,26 @@ import (
 
 type client struct {
 	nodesConfig *node.NodesConfig
-	algo        sharding.Sharding
+	algo        sharding.Algorithm
 }
 
-func NewClient(configPath string) (Client, error) {
-	nodesConfig, err := node.NewNodesConfig(
-		node.WithInitialState(configPath),
-	)
+func NewClient(
+	configPath string,
+	algoType sharding.AlgorithmType,
+) (Client, error) {
+	nodesConfig, err := node.NewNodesConfig(node.WithInitialState(configPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize nodes config: %w", err)
 	}
 
-	algo := sharding.NewNaive(
+	algo, err := sharding.NewAlgo(
+		algoType,
 		nodesConfig.GetShards(),
 		func(k string) uint32 { return crc32.ChecksumIEEE([]byte(k)) },
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize sharding algorithm: %w", err)
+	}
 
 	return &client{
 		algo:        algo,

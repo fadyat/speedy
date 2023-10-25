@@ -5,6 +5,28 @@ import (
 	"fmt"
 )
 
+type AlgorithmType string
+
+const (
+	NaiveAlgorithm      AlgorithmType = "naive"
+	RendezvousAlgorithm AlgorithmType = "rendezvous"
+)
+
+func NewAlgo(
+	algo AlgorithmType,
+	shards []*Shard,
+	hashFn func(key string) uint32,
+) (Algorithm, error) {
+	switch algo {
+	case NaiveAlgorithm:
+		return NewNaive(shards, hashFn), nil
+	case RendezvousAlgorithm:
+		return NewRendezvous(shards, hashFn), nil
+	default:
+		return nil, fmt.Errorf("unknown sharding algorithm: %s", algo)
+	}
+}
+
 var (
 	ErrShardAlreadyRegistered = errors.New("shard already registered")
 	ErrShardNotFound          = errors.New("shard not found")
@@ -22,7 +44,7 @@ func (s *Shard) uniqueKey() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
-type Sharding interface {
+type Algorithm interface {
 
 	// GetShard returns the shard that the key belongs to.
 	GetShard(key string) *Shard
