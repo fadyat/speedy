@@ -6,6 +6,8 @@ import (
 
 type naive struct {
 
+	// todo: rewrite to map
+	//
 	// shards is a slice of shards registered to the sharding algorithm.
 	//
 	// used slice for faster lookup and simplicity instead of map.

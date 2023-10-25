@@ -3,6 +3,8 @@ package sharding
 import "slices"
 
 type rendezvous struct {
+
+	// todo: rewrite to map
 	shards []*Shard
 	hash   hashFn
 }
