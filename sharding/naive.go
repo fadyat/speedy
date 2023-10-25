@@ -1,6 +1,8 @@
 package sharding
 
-import "slices"
+import (
+	"slices"
+)
 
 type naive struct {
 
@@ -39,25 +41,20 @@ func (s *naive) RegisterShard(shard *Shard) error {
 }
 
 func (s *naive) DeleteShard(shard *Shard) error {
-	idx := s.exists(shard)
-	if idx == -1 {
-		return ErrShardNotFound
+	if idx := s.exists(shard); idx != -1 {
+		s.shards = slices.Delete(s.shards, idx, idx+1)
+		return nil
 	}
 
-	s.shards = slices.Delete(s.shards, idx, idx+1)
-	return nil
+	return ErrShardNotFound
 }
 
 func (s *naive) exists(shard *Shard) int {
 	uk := shard.uniqueKey()
 
-	for i, sh := range s.shards {
-		if sh.uniqueKey() == uk {
-			return i
-		}
-	}
-
-	return -1
+	return slices.IndexFunc(s.shards, func(s *Shard) bool {
+		return s.uniqueKey() == uk
+	})
 }
 
 func (s *naive) GetShards() []*Shard {

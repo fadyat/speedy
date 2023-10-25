@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestExpensive_Flow(t *testing.T) {
+func TestNaive_Flow(t *testing.T) {
 	testcases := []struct {
 		name   string
 		shards []*Shard
@@ -53,7 +53,8 @@ func TestExpensive_Flow(t *testing.T) {
 			},
 			ops: func(s *naive, hash hashFn) {
 				shard := s.GetShard("key")
-				require.Equal(t, s.shards[hash("key")%uint32(len(s.shards))], shard)
+				idx := hash("key") % uint32(len(s.shards))
+				require.Equal(t, s.shards[idx], shard)
 			},
 		},
 		{
@@ -75,9 +76,10 @@ func TestExpensive_Flow(t *testing.T) {
 			},
 			ops: func(s *naive, hash hashFn) {
 				prev := s.GetShard("key")
-				require.Equal(t, s.shards[hash("key")%uint32(len(s.shards))], prev)
+				idx := hash("key") % uint32(len(s.shards))
+				require.Equal(t, s.shards[idx], prev)
 
-				require.NoError(t, s.RegisterShard(&Shard{Host: "localhost:8082"}))
+				require.NoError(t, s.RegisterShard(&Shard{Host: "localhost", Port: 8082}))
 				curr := s.GetShard("key")
 				require.NotEqual(t, prev, curr)
 			},
