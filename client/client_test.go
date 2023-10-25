@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"testing"
 )
@@ -18,7 +19,47 @@ import (
 const (
 	defaultCacheCapacity = 2000
 	defaultServerPort    = 50051
+
+	singleNodeConfig = `
+nodes:
+  1:
+    id: 1
+    host: localhost
+    port: 50051
+`
+
+	multipleNodesConfig = `
+nodes:
+  1:
+    id: 1
+    host: localhost
+    port: 50051
+  2:
+    id: 2
+    host: localhost
+    port: 50052
+  3:
+    id: 3
+    host: localhost
+    port: 50053`
 )
+
+func withTemporaryFile(t *testing.T, content string) (string, func()) {
+	f, err := os.CreateTemp("", "speedy-client-test.yaml")
+	require.NoError(t, err)
+
+	_, err = f.WriteString(content)
+	if err != nil {
+		require.NoError(t, f.Close())
+		require.NoError(t, os.Remove(f.Name()))
+	}
+
+	require.NoError(t, err)
+
+	return f.Name(), func() {
+		require.NoError(t, os.Remove(f.Name()))
+	}
+}
 
 func upServer(ctx context.Context, wg *sync.WaitGroup, t *testing.T, port int) error {
 	s := grpc.NewServer()
@@ -118,7 +159,10 @@ func TestClient_Flow(t *testing.T) {
 	wg.Add(1)
 	require.NoError(t, upServer(ctx, &wg, t, defaultServerPort))
 
-	c, err := NewClient("../testdata/single-node.yaml")
+	path, cleanup := withTemporaryFile(t, singleNodeConfig)
+	defer cleanup()
+
+	c, err := NewClient(path)
 	require.NoError(t, err)
 
 	for _, tc := range testcases {
@@ -168,7 +212,10 @@ func TestClient_MultipleNodes(t *testing.T) {
 		require.NoError(t, upServer(ctx, &wg, t, defaultServerPort+i))
 	}
 
-	c, err := NewClient("../testdata/multiple-nodes.yaml")
+	path, cleanup := withTemporaryFile(t, multipleNodesConfig)
+	defer cleanup()
+
+	c, err := NewClient(path)
 	require.NoError(t, err)
 
 	for _, tc := range testcases {
