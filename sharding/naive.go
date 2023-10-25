@@ -2,7 +2,7 @@ package sharding
 
 import "slices"
 
-type expensive struct {
+type naive struct {
 
 	// shards is a slice of shards registered to the sharding algorithm.
 	//
@@ -14,22 +14,22 @@ type expensive struct {
 	hash hashFn
 }
 
-func NewExpensive(
+func NewNaive(
 	shards []*Shard,
 	hashFn func(key string) uint32,
 ) Sharding {
-	return &expensive{
+	return &naive{
 		shards: shards,
 		hash:   hashFn,
 	}
 }
 
-func (s *expensive) GetShard(key string) *Shard {
+func (s *naive) GetShard(key string) *Shard {
 	idx := s.hash(key) % uint32(len(s.shards))
 	return s.shards[idx]
 }
 
-func (s *expensive) RegisterShard(shard *Shard) error {
+func (s *naive) RegisterShard(shard *Shard) error {
 	if s.exists(shard) != -1 {
 		return ErrShardAlreadyRegistered
 	}
@@ -38,7 +38,7 @@ func (s *expensive) RegisterShard(shard *Shard) error {
 	return nil
 }
 
-func (s *expensive) DeleteShard(shard *Shard) error {
+func (s *naive) DeleteShard(shard *Shard) error {
 	idx := s.exists(shard)
 	if idx == -1 {
 		return ErrShardNotFound
@@ -48,7 +48,7 @@ func (s *expensive) DeleteShard(shard *Shard) error {
 	return nil
 }
 
-func (s *expensive) exists(shard *Shard) int {
+func (s *naive) exists(shard *Shard) int {
 	uk := shard.uniqueKey()
 
 	for i, sh := range s.shards {
@@ -60,6 +60,6 @@ func (s *expensive) exists(shard *Shard) int {
 	return -1
 }
 
-func (s *expensive) GetShards() []*Shard {
+func (s *naive) GetShards() []*Shard {
 	return s.shards
 }

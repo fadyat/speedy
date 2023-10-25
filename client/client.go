@@ -23,7 +23,7 @@ func NewClient(configPath string) (Client, error) {
 		return nil, fmt.Errorf("failed to initialize nodes config: %w", err)
 	}
 
-	algo := sharding.NewExpensive(
+	algo := sharding.NewNaive(
 		nodesConfig.GetShards(),
 		func(k string) uint32 { return crc32.ChecksumIEEE([]byte(k)) },
 	)
