@@ -111,8 +111,7 @@ func TestRendezvous_Flow(t *testing.T) {
 				{Host: "localhost", Port: 8080, ID: "1"},
 			},
 			hashFn: func(key string) uint32 {
-				switch key {
-				case "key2":
+				if key == "key2" {
 					return 1
 				}
 

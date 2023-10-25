@@ -45,7 +45,7 @@ nodes:
     port: 50053`
 )
 
-func withTemporaryFile(t *testing.T, content string) (string, func()) {
+func withTemporaryFile(t *testing.T, content string) (path string, cleanup func()) {
 	f, err := os.CreateTemp("", "speedy-client-test.yaml")
 	require.NoError(t, err)
 

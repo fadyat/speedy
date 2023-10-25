@@ -5,6 +5,7 @@ import (
 	"github.com/fadyat/speedy/sharding"
 	"gopkg.in/yaml.v3"
 	"os"
+	"path/filepath"
 )
 
 // NodesConfig is used as current state of the system, it is used to
@@ -37,7 +38,7 @@ func NewNodesConfig(
 
 func WithInitialState(path string) NodesConfigOption {
 	return func(c *NodesConfig) error {
-		inode, err := os.ReadFile(path)
+		inode, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return fmt.Errorf("failed to read initial state file: %w", err)
 		}
