@@ -7,6 +7,7 @@ import (
 	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/server"
+	"github.com/fadyat/speedy/sharding"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"log"
@@ -162,7 +163,7 @@ func TestClient_Flow(t *testing.T) {
 	path, cleanup := withTemporaryFile(t, singleNodeConfig)
 	defer cleanup()
 
-	c, err := NewClient(path)
+	c, err := NewClient(path, sharding.RendezvousAlgorithm)
 	require.NoError(t, err)
 
 	for _, tc := range testcases {
@@ -215,7 +216,7 @@ func TestClient_MultipleNodes(t *testing.T) {
 	path, cleanup := withTemporaryFile(t, multipleNodesConfig)
 	defer cleanup()
 
-	c, err := NewClient(path)
+	c, err := NewClient(path, sharding.RendezvousAlgorithm)
 	require.NoError(t, err)
 
 	for _, tc := range testcases {
