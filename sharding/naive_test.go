@@ -71,15 +71,15 @@ func TestNaive_Flow(t *testing.T) {
 		{
 			name: "shard hash changes",
 			shards: []*Shard{
-				{Host: "localhost", Port: 8080},
-				{Host: "localhost", Port: 8081},
+				{Host: "localhost", Port: 8080, ID: "0"},
+				{Host: "localhost", Port: 8081, ID: "1"},
 			},
 			ops: func(s *naive, hash hashFn) {
 				prev := s.GetShard("key")
 				idx := hash("key") % uint32(len(s.shards))
 				require.Equal(t, s.shards[idx], prev)
 
-				require.NoError(t, s.RegisterShard(&Shard{Host: "localhost", Port: 8082}))
+				require.NoError(t, s.RegisterShard(&Shard{Host: "localhost", Port: 8082, ID: "2"}))
 				curr := s.GetShard("key")
 				require.NotEqual(t, prev, curr)
 			},

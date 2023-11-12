@@ -43,10 +43,6 @@ type Shard struct {
 	Port int    `yaml:"port"`
 }
 
-func (s *Shard) uniqueKey() string {
-	return fmt.Sprintf("%s:%d", s.Host, s.Port)
-}
-
 type Algorithm interface {
 
 	// GetShard returns the shard that the key belongs to.
@@ -62,4 +58,10 @@ type Algorithm interface {
 	//
 	// Currently, this method is only used for testing purposes.
 	GetShards() []*Shard
+}
+
+func ascopy[T any](slice []*T) []*T {
+	cpy := make([]*T, len(slice))
+	copy(cpy, slice)
+	return cpy
 }

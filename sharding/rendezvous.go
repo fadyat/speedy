@@ -1,8 +1,12 @@
 package sharding
 
-import "slices"
+import (
+	"slices"
+	"sync"
+)
 
 type rendezvous struct {
+	mx sync.RWMutex
 
 	// todo: rewrite to map
 	shards []*Shard
@@ -20,6 +24,9 @@ func NewRendezvous(
 }
 
 func (r *rendezvous) GetShard(key string) *Shard {
+	r.mx.RLock()
+	defer r.mx.RUnlock()
+
 	idx := r.getMaxShardIdx(key)
 	return r.shards[idx]
 }
@@ -38,6 +45,9 @@ func (r *rendezvous) getMaxShardIdx(key string) uint32 {
 }
 
 func (r *rendezvous) RegisterShard(shard *Shard) error {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
 	if r.exists(shard) != -1 {
 		return ErrShardAlreadyRegistered
 	}
@@ -47,6 +57,9 @@ func (r *rendezvous) RegisterShard(shard *Shard) error {
 }
 
 func (r *rendezvous) DeleteShard(shard *Shard) error {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
 	if idx := r.exists(shard); idx != -1 {
 		r.shards = slices.Delete(r.shards, idx, idx+1)
 		return nil
@@ -56,13 +69,16 @@ func (r *rendezvous) DeleteShard(shard *Shard) error {
 }
 
 func (r *rendezvous) exists(shard *Shard) int {
-	uk := shard.uniqueKey()
+	id := shard.ID
 
 	return slices.IndexFunc(r.shards, func(s *Shard) bool {
-		return s.uniqueKey() == uk
+		return s.ID == id
 	})
 }
 
 func (r *rendezvous) GetShards() []*Shard {
-	return r.shards
+	r.mx.RLock()
+	defer r.mx.RUnlock()
+
+	return ascopy(r.shards)
 }
