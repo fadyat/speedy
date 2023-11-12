@@ -10,6 +10,7 @@ type AlgorithmType string
 const (
 	NaiveAlgorithm      AlgorithmType = "naive"
 	RendezvousAlgorithm AlgorithmType = "rendezvous"
+	ConsistentAlgorithm AlgorithmType = "consistent"
 )
 
 func NewAlgo(
@@ -22,6 +23,8 @@ func NewAlgo(
 		return NewNaive(shards, hashFn), nil
 	case RendezvousAlgorithm:
 		return NewRendezvous(shards, hashFn), nil
+	case ConsistentAlgorithm:
+		return NewConsistent(shards, hashFn), nil
 	default:
 		return nil, fmt.Errorf("unknown sharding algorithm: %s", algo)
 	}
@@ -40,10 +43,6 @@ type Shard struct {
 	Port int    `yaml:"port"`
 }
 
-func (s *Shard) uniqueKey() string {
-	return fmt.Sprintf("%s:%d", s.Host, s.Port)
-}
-
 type Algorithm interface {
 
 	// GetShard returns the shard that the key belongs to.
@@ -59,4 +58,10 @@ type Algorithm interface {
 	//
 	// Currently, this method is only used for testing purposes.
 	GetShards() []*Shard
+}
+
+func ascopy[T any](slice []*T) []*T {
+	cpy := make([]*T, len(slice))
+	copy(cpy, slice)
+	return cpy
 }
