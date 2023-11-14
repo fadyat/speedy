@@ -13,3 +13,4 @@ Features:
 Docs:
 
 - [Sharding algorithms](./docs/sharding.md)
+- [Leader election](./docs/leader-election.md)
