@@ -49,10 +49,6 @@ The main downside of the bully algorithm is that if the highest-ranked node goes
 leadership every time it comes back online, causing unnecessary reelections. Synchronization of messages can also be
 difficult to maintain, especially as the cluster gets larger and physically distributed.
 
-### Raft
-
-todo: add raft
-
 ### Resources
 
 - https://itnext.io/lets-implement-a-basic-leader-election-algorithm-using-go-with-rpc-6cd012515358

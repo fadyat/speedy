@@ -14,3 +14,5 @@ Docs:
 
 - [Sharding algorithms](./docs/sharding.md)
 - [Leader election](./docs/leader-election.md)
+- [Consensus](./docs/consensus.md)
+- [Leader election vs consensus](./docs/leader-election-vs-consensus.md)
