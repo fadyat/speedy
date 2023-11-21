@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func isValidOrder(order []Node, head *Node) bool {
+func isValidOrder(order []node, head *node) bool {
 	current := head.next
 	for _, node := range order {
 		if current.key != node.key || current.val != node.val {
@@ -48,7 +48,7 @@ func TestLru_Get(t *testing.T) {
 				require.True(t, ok)
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
-				order := []Node{
+				order := []node{
 					{key: "foo", val: "bar"},
 				}
 
@@ -65,7 +65,7 @@ func TestLru_Get(t *testing.T) {
 				lru.Put("bar", "baz")
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
-				order := []Node{
+				order := []node{
 					{key: "bar", val: "baz"},
 					{key: "foo", val: "baz"},
 				}
@@ -84,7 +84,7 @@ func TestLru_Get(t *testing.T) {
 				lru.Get("foo")
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
-				order := []Node{
+				order := []node{
 					{key: "foo", val: "bar"},
 					{key: "baz", val: "qux"},
 					{key: "bar", val: "baz"},
@@ -104,7 +104,7 @@ func TestLru_Get(t *testing.T) {
 				lru.Put("qux", "quux")
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
-				order := []Node{
+				order := []node{
 					{key: "qux", val: "quux"},
 					{key: "baz", val: "qux"},
 					{key: "bar", val: "baz"},
@@ -123,7 +123,7 @@ func TestLru_Get(t *testing.T) {
 				lru.Put("baz", "qux")
 			},
 			verifyInternal: func(t *testing.T, lru *lru) {
-				order := []Node{
+				order := []node{
 					{key: "baz", val: "qux"},
 				}
 

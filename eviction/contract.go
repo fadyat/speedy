@@ -1,8 +1,8 @@
 package eviction
 
-type Node struct {
+type node struct {
 	key, val   string
-	prev, next *Node
+	prev, next *node
 }
 
 type Algorithm interface {
