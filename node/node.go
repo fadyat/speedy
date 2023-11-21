@@ -20,6 +20,10 @@ type Node struct {
 	// send a request to the node.
 	cc      *grpc.ClientConn
 	gclient api.CacheServiceClient
+
+	// RemoveCandidate is used to indicate that the node is a candidate
+	// to be removed from the config.
+	RemoveCandidate bool `yaml:"remove_candidate"`
 }
 
 func (n *Node) connString() string {
@@ -46,8 +50,8 @@ func (n *Node) RefreshClient() error {
 			insecure.NewCredentials(),
 		),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second,
-			Timeout:             2 * time.Second,
+			Time:                30 * time.Second,
+			Timeout:             30 * time.Second,
 			PermitWithoutStream: true,
 		}),
 	)

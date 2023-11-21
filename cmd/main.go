@@ -7,8 +7,10 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 	"net"
+	"time"
 )
 
 var (
@@ -30,6 +32,9 @@ func main() {
 				logging.WithLogOnEvents(logging.StartCall, logging.FinishCall),
 			),
 		),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Timeout: 30 * time.Second,
+		}),
 	)
 
 	cacheServer := server.NewCacheServer(eviction.NewLRU(c.Cache.Capacity))

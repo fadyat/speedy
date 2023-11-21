@@ -21,6 +21,9 @@ test:
 	@go test $(FLGS) -cover ./... -coverprofile=cover.out
 	@go tool cover -html=cover.out -o cover.html
 
+bench:
+	@go test -test.bench=BenchmarkClient_70PercentsRead -benchmem -benchtime=10s ./...
+
 lint:
 	@golangci-lint run --issues-exit-code 1 --print-issued-lines=true --config .golangci.yml ./...
 

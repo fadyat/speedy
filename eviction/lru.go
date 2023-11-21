@@ -6,18 +6,18 @@ import (
 
 type lru struct {
 	cap, size  int
-	head, tail *Node
-	cache      map[string]*Node
+	head, tail *node
+	cache      map[string]*node
 	mx         sync.RWMutex
 }
 
 func NewLRU(capacity int) Algorithm {
-	head, tail := &Node{}, &Node{}
+	head, tail := &node{}, &node{}
 	head.next, tail.prev = tail, head
 
 	return &lru{
 		cap:   capacity,
-		cache: make(map[string]*Node),
+		cache: make(map[string]*node),
 		head:  head,
 		tail:  tail,
 	}
@@ -35,7 +35,7 @@ func (l *lru) Get(key string) (string, bool) {
 	return "", false
 }
 
-func (l *lru) promote(node *Node) {
+func (l *lru) promote(node *node) {
 	left, right := node.prev, node.next
 	if left != nil {
 		left.next = right
@@ -48,7 +48,7 @@ func (l *lru) promote(node *Node) {
 	l.justPromote(node)
 }
 
-func (l *lru) justPromote(node *Node) {
+func (l *lru) justPromote(node *node) {
 	node.next = l.head.next
 	l.head.next.prev = node
 	node.prev = l.head
@@ -65,7 +65,7 @@ func (l *lru) Put(key, val string) {
 		return
 	}
 
-	node := &Node{key: key, val: val, prev: l.head, next: l.head.next}
+	node := &node{key: key, val: val, prev: l.head, next: l.head.next}
 	l.cache[key] = node
 	l.size++
 	l.justPromote(node)

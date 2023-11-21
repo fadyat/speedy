@@ -4,4 +4,5 @@ package client
 type Client interface {
 	Get(key string) (string, error)
 	Put(key, value string) error
+	Close()
 }

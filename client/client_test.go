@@ -14,7 +14,9 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 const (
@@ -45,7 +47,7 @@ nodes:
     port: 50053`
 )
 
-func withTemporaryFile(t *testing.T, content string) (path string, cleanup func()) {
+func withTemporaryFile(t require.TestingT, content string) (path string, cleanup func()) {
 	f, err := os.CreateTemp("", "speedy-client-test.yaml")
 	require.NoError(t, err)
 
@@ -62,7 +64,7 @@ func withTemporaryFile(t *testing.T, content string) (path string, cleanup func(
 	}
 }
 
-func upServer(ctx context.Context, wg *sync.WaitGroup, t *testing.T, port int) error {
+func upServer(ctx context.Context, wg *sync.WaitGroup, t require.TestingT, port int) error {
 	s := grpc.NewServer()
 	cacheServer := server.NewCacheServer(eviction.NewLRU(defaultCacheCapacity))
 	api.RegisterCacheServiceServer(s, cacheServer)
@@ -173,6 +175,7 @@ func TestClient_Flow(t *testing.T) {
 		})
 	}
 
+	c.Close()
 	cancel()
 	wg.Wait()
 }
@@ -223,6 +226,121 @@ func TestClient_MultipleNodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.pre(c)
 			tc.verify(c)
+		})
+	}
+
+	c.Close()
+	cancel()
+	wg.Wait()
+}
+
+func BenchmarkClient_Get(b *testing.B) {
+	var (
+		wg          sync.WaitGroup
+		ctx, cancel = context.WithCancel(context.Background())
+	)
+
+	wg.Add(1)
+	require.NoError(b, upServer(ctx, &wg, b, defaultServerPort))
+
+	path, cleanup := withTemporaryFile(b, multipleNodesConfig)
+	defer cleanup()
+
+	c, err := NewClient(path, sharding.RendezvousAlgorithm)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, e := c.Get(fmt.Sprintf("key%d", i))
+		require.NoError(b, e)
+	}
+
+	cancel()
+	wg.Wait()
+}
+
+// current benchmark is not representative, will be changed in the future
+//
+// benchmarking of sharding algorithms it's really hard to do
+//
+// need to make a design decision on how to benchmark the algorithms
+// 1. benchmark the algorithms with a fixed number of keys and nodes
+// 2. benchmark the algorithms with a fixed number of keys and a variable number of nodes
+// 3. benchmark the algorithms with a variable number of keys and a fixed number of nodes
+// 4. benchmark the algorithms with a variable number of keys and a variable number of nodes
+//
+// each benchmark need to represent cache misses/hits, how nodes are filled up, how keys are distributed
+//
+// the best one is to benchmark cases, when nodes are added/removed, how keys are redistributed
+//
+// the hardest part is to make the benchmark representative of the real world
+func BenchmarkClient_70PercentsRead(b *testing.B) {
+	testcases := []struct {
+		name     string
+		nodes    int
+		algoType sharding.AlgorithmType
+	}{
+		{
+			name:     "naive",
+			algoType: sharding.NaiveAlgorithm,
+		},
+		{
+			name:     "rendezvous",
+			algoType: sharding.RendezvousAlgorithm,
+		},
+		{
+			name:     "consistent",
+			algoType: sharding.ConsistentAlgorithm,
+		},
+	}
+
+	var (
+		wg          sync.WaitGroup
+		ctx, cancel = context.WithCancel(context.Background())
+		nodes       = 3
+		maxKeys     = defaultCacheCapacity / nodes
+		readRate    = 0.7
+	)
+
+	for i := 0; i < nodes; i++ {
+		wg.Add(1)
+		require.NoError(b, upServer(ctx, &wg, b, defaultServerPort+i))
+	}
+
+	for _, tc := range testcases {
+		b.Run(tc.name, func(b *testing.B) {
+			path, cleanup := withTemporaryFile(b, multipleNodesConfig)
+			defer cleanup()
+
+			c, err := NewClient(path, tc.algoType)
+			require.NoError(b, err)
+
+			var (
+				cacheMisses atomic.Int64
+				cacheHits   atomic.Int64
+			)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+
+				key := fmt.Sprintf("key%d", i%maxKeys)
+				if i%int(1/readRate) == 0 {
+					_, e := c.Get(key)
+					switch {
+					case e == nil:
+						cacheHits.Add(1)
+					default:
+						cacheMisses.Add(1)
+					}
+				}
+
+				require.NoError(b, c.Put(key, key))
+			}
+
+			// waiting some time to free up the servers
+			b.StopTimer()
+			c.Close()
+			<-time.After(3 * time.Second)
 		})
 	}
 
