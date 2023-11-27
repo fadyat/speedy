@@ -20,9 +20,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CacheService_Get_FullMethodName = "/api.CacheService/Get"
-	CacheService_Put_FullMethodName = "/api.CacheService/Put"
-	CacheService_Len_FullMethodName = "/api.CacheService/Len"
+	CacheService_Get_FullMethodName              = "/api.CacheService/Get"
+	CacheService_Put_FullMethodName              = "/api.CacheService/Put"
+	CacheService_Len_FullMethodName              = "/api.CacheService/Len"
+	CacheService_GetClusterConfig_FullMethodName = "/api.CacheService/GetClusterConfig"
 )
 
 // CacheServiceClient is the client API for CacheService service.
@@ -32,6 +33,9 @@ type CacheServiceClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Len(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*LengthResponse, error)
+	// GetClusterConfig is used to get the cluster configuration
+	// from client side, to have up-to-date cluster configuration.
+	GetClusterConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ClusterConfig, error)
 }
 
 type cacheServiceClient struct {
@@ -69,6 +73,15 @@ func (c *cacheServiceClient) Len(ctx context.Context, in *emptypb.Empty, opts ..
 	return out, nil
 }
 
+func (c *cacheServiceClient) GetClusterConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ClusterConfig, error) {
+	out := new(ClusterConfig)
+	err := c.cc.Invoke(ctx, CacheService_GetClusterConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CacheServiceServer is the server API for CacheService service.
 // All implementations must embed UnimplementedCacheServiceServer
 // for forward compatibility
@@ -76,6 +89,9 @@ type CacheServiceServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Put(context.Context, *PutRequest) (*emptypb.Empty, error)
 	Len(context.Context, *emptypb.Empty) (*LengthResponse, error)
+	// GetClusterConfig is used to get the cluster configuration
+	// from client side, to have up-to-date cluster configuration.
+	GetClusterConfig(context.Context, *emptypb.Empty) (*ClusterConfig, error)
 	mustEmbedUnimplementedCacheServiceServer()
 }
 
@@ -91,6 +107,9 @@ func (UnimplementedCacheServiceServer) Put(context.Context, *PutRequest) (*empty
 }
 func (UnimplementedCacheServiceServer) Len(context.Context, *emptypb.Empty) (*LengthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Len not implemented")
+}
+func (UnimplementedCacheServiceServer) GetClusterConfig(context.Context, *emptypb.Empty) (*ClusterConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterConfig not implemented")
 }
 func (UnimplementedCacheServiceServer) mustEmbedUnimplementedCacheServiceServer() {}
 
@@ -159,6 +178,24 @@ func _CacheService_Len_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CacheService_GetClusterConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).GetClusterConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_GetClusterConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).GetClusterConfig(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CacheService_ServiceDesc is the grpc.ServiceDesc for CacheService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -177,6 +214,10 @@ var CacheService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Len",
 			Handler:    _CacheService_Len_Handler,
+		},
+		{
+			MethodName: "GetClusterConfig",
+			Handler:    _CacheService_GetClusterConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
