@@ -3,6 +3,7 @@ package sharding
 import (
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 )
 
 type AlgorithmType string
@@ -60,8 +61,10 @@ type Algorithm interface {
 	GetShards() []*Shard
 }
 
-func ascopy[T any](slice []*T) []*T {
-	cpy := make([]*T, len(slice))
-	copy(cpy, slice)
-	return cpy
+func logRegisterErr(err error) {
+	switch {
+	case errors.Is(err, ErrShardAlreadyRegistered), err == nil:
+	default:
+		zap.L().Error("failed to register shard", zap.Error(err))
+	}
 }

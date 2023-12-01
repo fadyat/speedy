@@ -6,73 +6,84 @@ import (
 )
 
 type naive struct {
-	mx sync.RWMutex
-
-	// todo: rewrite to map
-	//
-	// shards is a slice of shards registered to the sharding algorithm.
-	//
-	// used slice for faster lookup and simplicity instead of map.
-	shards []*Shard
-
-	// hash is the hash function used to determine which shard a key belongs to.
-	// Returned value will be modded by the number of shards.
-	hash hashFn
+	mx     sync.RWMutex
+	shards map[string]*Shard
+	keys   []string
+	hash   hashFn
 }
 
 func NewNaive(
 	shards []*Shard,
 	hashFn func(key string) uint32,
 ) Algorithm {
-	return &naive{
-		shards: shards,
+	n := &naive{
 		hash:   hashFn,
+		shards: make(map[string]*Shard),
+		keys:   make([]string, 0, len(shards)),
 	}
+
+	n.mx.Lock()
+	defer n.mx.Unlock()
+
+	for _, shard := range shards {
+		logRegisterErr(n.registerShardUnsafe(shard))
+	}
+
+	return n
 }
 
-func (s *naive) GetShard(key string) *Shard {
-	s.mx.RLock()
-	defer s.mx.RUnlock()
+func (n *naive) GetShard(key string) *Shard {
+	n.mx.RLock()
+	defer n.mx.RUnlock()
 
-	idx := s.hash(key) % uint32(len(s.shards))
-	return s.shards[idx]
+	idx := n.hash(key) % uint32(len(n.keys))
+	return n.shards[n.keys[idx]]
 }
 
-func (s *naive) RegisterShard(shard *Shard) error {
-	s.mx.Lock()
-	defer s.mx.Unlock()
+func (n *naive) RegisterShard(shard *Shard) error {
+	n.mx.Lock()
+	defer n.mx.Unlock()
 
-	if s.exists(shard) != -1 {
+	return n.registerShardUnsafe(shard)
+}
+
+func (n *naive) registerShardUnsafe(shard *Shard) error {
+	if n.exists(shard) {
 		return ErrShardAlreadyRegistered
 	}
 
-	s.shards = append(s.shards, shard)
+	n.shards[shard.ID] = shard
+	n.keys = append(n.keys, shard.ID)
 	return nil
 }
 
-func (s *naive) DeleteShard(shard *Shard) error {
-	s.mx.Lock()
-	defer s.mx.Unlock()
+func (n *naive) DeleteShard(shard *Shard) error {
+	n.mx.Lock()
+	defer n.mx.Unlock()
 
-	if idx := s.exists(shard); idx != -1 {
-		s.shards = slices.Delete(s.shards, idx, idx+1)
-		return nil
+	if !n.exists(shard) {
+		return ErrShardNotFound
 	}
 
-	return ErrShardNotFound
+	delete(n.shards, shard.ID)
+	idx := slices.Index(n.keys, shard.ID)
+	n.keys = slices.Delete(n.keys, idx, idx+1)
+	return nil
 }
 
-func (s *naive) exists(shard *Shard) int {
-	id := shard.ID
-
-	return slices.IndexFunc(s.shards, func(s *Shard) bool {
-		return s.ID == id
-	})
+func (n *naive) exists(shard *Shard) bool {
+	_, ok := n.shards[shard.ID]
+	return ok
 }
 
-func (s *naive) GetShards() []*Shard {
-	s.mx.RLock()
-	defer s.mx.RUnlock()
+func (n *naive) GetShards() []*Shard {
+	n.mx.RLock()
+	defer n.mx.RUnlock()
 
-	return ascopy(s.shards)
+	shards := make([]*Shard, 0, len(n.keys))
+	for _, key := range n.keys {
+		shards = append(shards, n.shards[key])
+	}
+
+	return shards
 }
