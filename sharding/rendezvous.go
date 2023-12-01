@@ -6,10 +6,9 @@ import (
 )
 
 type rendezvous struct {
-	mx sync.RWMutex
-
-	// todo: rewrite to map
-	shards []*Shard
+	mx     sync.RWMutex
+	shards map[string]*Shard
+	keys   []string
 	hash   hashFn
 }
 
@@ -17,10 +16,22 @@ func NewRendezvous(
 	shards []*Shard,
 	hashFn func(key string) uint32,
 ) Algorithm {
-	return &rendezvous{
-		shards: shards,
+	r := &rendezvous{
 		hash:   hashFn,
+		shards: make(map[string]*Shard),
+		keys:   make([]string, 0, len(shards)),
 	}
+
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	for _, shard := range shards {
+		if err := r.registerShardUnsafe(shard); err != nil {
+			continue
+		}
+	}
+
+	return r
 }
 
 func (r *rendezvous) GetShard(key string) *Shard {
@@ -28,14 +39,14 @@ func (r *rendezvous) GetShard(key string) *Shard {
 	defer r.mx.RUnlock()
 
 	idx := r.getMaxShardIdx(key)
-	return r.shards[idx]
+	return r.shards[r.keys[idx]]
 }
 
 func (r *rendezvous) getMaxShardIdx(key string) uint32 {
 	var maxIdx, maxHash uint32
 
-	for i, shard := range r.shards {
-		hash := r.hash(key + shard.ID)
+	for i, shardID := range r.keys {
+		hash := r.hash(key + shardID)
 		if hash > maxHash {
 			maxHash, maxIdx = hash, uint32(i)
 		}
@@ -48,11 +59,16 @@ func (r *rendezvous) RegisterShard(shard *Shard) error {
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
-	if r.exists(shard) != -1 {
+	return r.registerShardUnsafe(shard)
+}
+
+func (r *rendezvous) registerShardUnsafe(shard *Shard) error {
+	if r.exists(shard) {
 		return ErrShardAlreadyRegistered
 	}
 
-	r.shards = append(r.shards, shard)
+	r.shards[shard.ID] = shard
+	r.keys = append(r.keys, shard.ID)
 	return nil
 }
 
@@ -60,25 +76,30 @@ func (r *rendezvous) DeleteShard(shard *Shard) error {
 	r.mx.Lock()
 	defer r.mx.Unlock()
 
-	if idx := r.exists(shard); idx != -1 {
-		r.shards = slices.Delete(r.shards, idx, idx+1)
-		return nil
+	if !r.exists(shard) {
+		return ErrShardNotFound
 	}
 
-	return ErrShardNotFound
+	delete(r.shards, shard.ID)
+	idx := slices.Index(r.keys, shard.ID)
+	r.keys = slices.Delete(r.keys, idx, idx+1)
+	return nil
 }
 
-func (r *rendezvous) exists(shard *Shard) int {
+func (r *rendezvous) exists(shard *Shard) bool {
 	id := shard.ID
-
-	return slices.IndexFunc(r.shards, func(s *Shard) bool {
-		return s.ID == id
-	})
+	_, ok := r.shards[id]
+	return ok
 }
 
 func (r *rendezvous) GetShards() []*Shard {
 	r.mx.RLock()
 	defer r.mx.RUnlock()
 
-	return ascopy(r.shards)
+	shards := make([]*Shard, 0, len(r.keys))
+	for _, key := range r.keys {
+		shards = append(shards, r.shards[key])
+	}
+
+	return shards
 }

@@ -66,7 +66,7 @@ func (c *consistent) RegisterShard(shard *Shard) error {
 
 func (c *consistent) registerShardUnsafe(shard *Shard) error {
 	var hash = c.hash("node" + shard.ID)
-	if _, ok := c.shards[hash]; ok {
+	if c.exists(hash) {
 		return ErrShardAlreadyRegistered
 	}
 
@@ -81,7 +81,7 @@ func (c *consistent) DeleteShard(shard *Shard) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	if _, ok := c.shards[hash]; !ok {
+	if !c.exists(hash) {
 		return ErrShardNotFound
 	}
 
@@ -89,6 +89,11 @@ func (c *consistent) DeleteShard(shard *Shard) error {
 	idx := slices.Index(c.orderedKeys, hash)
 	c.orderedKeys = slices.Delete(c.orderedKeys, idx, idx+1)
 	return nil
+}
+
+func (c *consistent) exists(hash uint32) bool {
+	_, ok := c.shards[hash]
+	return ok
 }
 
 func (c *consistent) GetShards() []*Shard {

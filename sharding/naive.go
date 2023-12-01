@@ -63,15 +63,14 @@ func (s *naive) DeleteShard(shard *Shard) error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
-	if s.exists(shard) {
-		delete(s.shards, shard.ID)
-		slices.DeleteFunc(s.keys, func(s string) bool {
-			return s == shard.ID
-		})
-		return nil
+	if !s.exists(shard) {
+		return ErrShardNotFound
 	}
 
-	return ErrShardNotFound
+	delete(s.shards, shard.ID)
+	idx := slices.Index(s.keys, shard.ID)
+	s.keys = slices.Delete(s.keys, idx, idx+1)
+	return nil
 }
 
 func (s *naive) exists(shard *Shard) bool {

@@ -59,9 +59,3 @@ type Algorithm interface {
 	// Currently, this method is only used for testing purposes.
 	GetShards() []*Shard
 }
-
-func ascopy[T any](slice []*T) []*T {
-	cpy := make([]*T, len(slice))
-	copy(cpy, slice)
-	return cpy
-}
