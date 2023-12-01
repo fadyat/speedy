@@ -36,6 +36,33 @@ func (s *CacheServer) Len(_ context.Context, _ *emptypb.Empty) (*api.LengthRespo
 	return &api.LengthResponse{Length: s.cache.Len()}, nil
 }
 
+func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*api.ClusterConfig, error) {
+	// current configuration need to be retrieved from the node file system.
+	// updated via the leader node gRPC calls and updated in the node file system.
+	//
+	// right now, mocking the cluster config with the following:
+
+	var locallyStored = []*api.Node{
+		{
+			Id:   "1",
+			Host: "localhost",
+			Port: 8081,
+		},
+		{
+			Id:   "2",
+			Host: "localhost",
+			Port: 8082,
+		},
+		{
+			Id:   "3",
+			Host: "localhost",
+			Port: 8083,
+		},
+	}
+
+	return &api.ClusterConfig{Nodes: locallyStored}, nil
+}
+
 func NewCacheServer(
 	algo eviction.Algorithm,
 ) *CacheServer {

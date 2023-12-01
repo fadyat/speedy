@@ -187,6 +187,7 @@ func TestClient_MultipleNodes(t *testing.T) {
 		pre    func(c Client)
 		verify func(c Client)
 	}{
+		// fixme: don't work with consistent, probably bad circle config
 		{
 			name: "as in single node out of capacity",
 			pre: func(c Client) {

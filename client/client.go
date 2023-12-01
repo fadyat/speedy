@@ -6,6 +6,7 @@ import (
 	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/node"
 	"github.com/fadyat/speedy/sharding"
+	"go.uber.org/zap"
 	"hash/crc32"
 	"time"
 )
@@ -36,11 +37,6 @@ func NewClient(
 		return nil, fmt.Errorf("failed to initialize nodes config: %w", err)
 	}
 
-	// fixme: current problem if we updating the nodes config, the sharding
-	//  algorithm will not be updated, and we will have a difference.
-	//  we need to update the sharding algorithm, when the nodes config
-	//  is updated.
-
 	algo, err := sharding.NewAlgo(
 		algoType,
 		nodesConfig.GetShards(),
@@ -65,7 +61,16 @@ func NewClient(
 }
 
 func (c *client) Get(key string) (string, error) {
-	n := c.nodesConfig.GetNode(c.algo.GetShard(key).ID)
+	shard := c.algo.GetShard(key)
+	if shard == nil {
+		return "", ErrCacheMiss
+	}
+
+	n := c.nodesConfig.GetNode(shard.ID)
+	if n == nil {
+		zap.L().Info("sharding and nodes config are not synced, got outdated shard")
+		return "", ErrCacheMiss
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -79,7 +84,16 @@ func (c *client) Get(key string) (string, error) {
 }
 
 func (c *client) Put(key, value string) error {
-	n := c.nodesConfig.GetNode(c.algo.GetShard(key).ID)
+	shard := c.algo.GetShard(key)
+	if shard == nil {
+		return ErrCacheMiss
+	}
+
+	n := c.nodesConfig.GetNode(shard.ID)
+	if n == nil {
+		zap.L().Info("sharding and nodes config are not synced, got outdated shard")
+		return ErrCacheMiss
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -103,9 +117,38 @@ func (c *client) SyncClusterConfig(ctx context.Context) <-chan error {
 			case <-ctx.Done():
 				return
 			case <-time.After(c.syncPeriod):
-				if err := c.nodesConfig.Sync(); err != nil {
-					errCh <- err
+				// INFO: we don't guarantee consistency in sync process.
+				//
+				// in current implementation syncing between nodes config and shards
+				//  are done in non-atomic way.
+				//
+				// we're increasing cache miss rate in this case, but our cache don't
+				//  have high consistency guarantees, so it's ok.
+				//
+				// Example of inconsistency:
+				// - we have 2 nodes, and 2 shards
+				// - nodes config is updated, and we have 2 node, where on of them is
+				//   different from the previous one (e.g. removed and new one added)
+				//
+				//  [1, 2] -> [1, 3], in that case sharding algorithm will return shard
+				//   with id 2, but node with id 2 is not exists anymore, that means
+				//   that she is down, and we will in any cases get ErrCacheMiss.
+				//
+				// - shards config is updated, nodes and shards config are synced now
+
+				changed, err := c.nodesConfig.Sync()
+				if err != nil {
+					errCh <- fmt.Errorf("failed to sync nodes config: %w", err)
+					continue
 				}
+
+				if !changed {
+					zap.L().Debug("nodes config is not changed")
+					continue
+				}
+
+				zap.L().Debug("nodes config is changed, syncing shards")
+				sharding.SyncShards(c.algo, c.nodesConfig.GetShards())
 			}
 		}
 	}()

@@ -45,19 +45,9 @@ type Shard struct {
 }
 
 type Algorithm interface {
-
-	// GetShard returns the shard that the key belongs to.
 	GetShard(key string) *Shard
-
-	// RegisterShard registers a shard to the sharding algorithm.
 	RegisterShard(shard *Shard) error
-
-	// DeleteShard deletes a shard from the sharding algorithm.
 	DeleteShard(shard *Shard) error
-
-	// GetShards returns all shards registered to the sharding algorithm.
-	//
-	// Currently, this method is only used for testing purposes.
 	GetShards() []*Shard
 }
 
@@ -66,5 +56,36 @@ func logRegisterErr(err error) {
 	case errors.Is(err, ErrShardAlreadyRegistered), err == nil:
 	default:
 		zap.L().Error("failed to register shard", zap.Error(err))
+	}
+}
+
+func logDeleteErr(err error) {
+	switch {
+	case errors.Is(err, ErrShardNotFound), err == nil:
+	default:
+		zap.L().Error("failed to delete shard", zap.Error(err))
+	}
+}
+
+func SyncShards(algo Algorithm, desired []*Shard) {
+	var (
+		desiredMap = make(map[string]*Shard, len(desired))
+		existing   = algo.GetShards()
+	)
+
+	for _, shard := range desired {
+		desiredMap[shard.ID] = shard
+	}
+
+	for _, shard := range existing {
+		if _, ok := desiredMap[shard.ID]; !ok {
+			logDeleteErr(algo.DeleteShard(shard))
+		}
+	}
+
+	for _, shard := range desired {
+		if err := algo.RegisterShard(shard); err != nil {
+			logRegisterErr(err)
+		}
 	}
 }

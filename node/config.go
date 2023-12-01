@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/sharding"
@@ -52,6 +53,9 @@ func NewNodesConfig(
 }
 
 func (c *NodesConfig) GetNode(id string) *Node {
+	c.mx.RLock()
+	defer c.mx.RUnlock()
+
 	return c.nodes[id]
 }
 
@@ -62,10 +66,16 @@ func WithInitialState(path string) NodesConfigOption {
 			return fmt.Errorf("failed to read initial state file: %w", err)
 		}
 
-		if err = yaml.Unmarshal(inode, c); err != nil {
+		// todo: rewrite this peace of shit
+		var nodes = struct {
+			Nodes map[string]*Node `yaml:"nodes"`
+		}{}
+
+		if err = yaml.Unmarshal(inode, &nodes); err != nil {
 			return fmt.Errorf("failed to unmarshal initial state file: %w", err)
 		}
 
+		c.nodes = nodes.Nodes
 		c.keys = make([]string, 0, len(c.nodes))
 		for _, n := range c.nodes {
 			c.keys = append(c.keys, n.ID)
@@ -85,19 +95,18 @@ func (c *NodesConfig) GetShards() []*sharding.Shard {
 	c.mx.RLock()
 	defer c.mx.RUnlock()
 
-	shards := make([]*sharding.Shard, 0, len(c.nodes))
-	for _, n := range c.nodes {
-		shards = append(shards, n.ToShard())
+	var shards = make([]*sharding.Shard, 0, len(c.nodes))
+	for _, k := range c.keys {
+		shards = append(shards, c.nodes[k].ToShard())
 	}
 
 	return shards
 }
 
-// Sync it's actual cluster config update.
-func (c *NodesConfig) Sync() error {
+func (c *NodesConfig) Sync() (bool, error) {
 	var sourceOfTruth = c.nodeSelector(c)
 	if sourceOfTruth == nil {
-		return fmt.Errorf("failed to select a node")
+		return false, errors.New("failed to select node")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -106,13 +115,13 @@ func (c *NodesConfig) Sync() error {
 	// todo: add retry mechanism or select another node
 	desiredConfig, err := sourceOfTruth.Request().GetClusterConfig(ctx, &emptypb.Empty{})
 	if err != nil {
-		return fmt.Errorf("failed to get cluster config: %w", err)
+		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
 
 	return c.syncStates(desiredConfig.Nodes)
 }
 
-func (c *NodesConfig) syncStates(desired []*api.Node) error {
+func (c *NodesConfig) syncStates(desired []*api.Node) (bool, error) {
 	var (
 		wg    sync.WaitGroup
 		errCh = make(chan error)
@@ -126,11 +135,9 @@ func (c *NodesConfig) syncStates(desired []*api.Node) error {
 
 			switch d.state {
 			case nodeStateAdded:
-				zap.S().Infof("adding node %s", d.id)
-				skipNil(errCh, c.setupNode(d))
+				c.setupWithObservability(errCh, d)
 			case nodeStateRemoved:
-				zap.S().Infof("removing node %s", d.id)
-				skipNil(errCh, c.teardownNode(d))
+				c.teardownWithObservability(errCh, d)
 			case nodeStateSynced:
 				zap.S().Infof("node %s is synced", d.id)
 			default:
@@ -144,12 +151,7 @@ func (c *NodesConfig) syncStates(desired []*api.Node) error {
 		close(errCh)
 	}()
 
-	var errs = collect(errCh)
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to sync cluster config: %v", errs)
-	}
-
-	return nil
+	return collect(errCh)
 }
 
 func (c *NodesConfig) diff(desired []*api.Node) map[string]*nodeDiff {
@@ -191,6 +193,18 @@ func (c *NodesConfig) setupNode(n *nodeDiff) error {
 	return nil
 }
 
+func (c *NodesConfig) setupWithObservability(
+	errs chan<- error, d *nodeDiff,
+) {
+	zap.S().Infof("adding node %s", d.id)
+	if err := c.setupNode(d); err != nil {
+		errs <- fmt.Errorf("failed to setup node: %w", err)
+		return
+	}
+
+	errs <- nil
+}
+
 func (c *NodesConfig) teardownNode(n *nodeDiff) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
@@ -199,24 +213,44 @@ func (c *NodesConfig) teardownNode(n *nodeDiff) error {
 		delete(c.nodes, n.id)
 		slices.DeleteFunc(c.keys, func(s string) bool { return s == n.id })
 		if e := node.Close(); e != nil {
-			return fmt.Errorf("failed to close node, but removed from config: %w", e)
+			// ignoring the error, system state need to be updated any way
+			zap.S().Errorf("failed to close node %s: %v", n.id, e)
 		}
 	}
 
 	return nil
 }
 
-func skipNil(ch chan<- error, v error) {
-	if v != nil {
-		ch <- v
+func (c *NodesConfig) teardownWithObservability(
+	errs chan<- error, d *nodeDiff,
+) {
+	zap.S().Infof("removing node %s", d.id)
+	if err := c.teardownNode(d); err != nil {
+		errs <- fmt.Errorf("failed to teardown node: %w", err)
+		return
 	}
+
+	errs <- nil
 }
 
-func collect(ch <-chan error) []error {
-	var vs = make([]error, 0)
-	for v := range ch {
-		vs = append(vs, v)
+func collect(ch <-chan error) (bool, error) {
+	var (
+		errs    = make([]error, 0)
+		changed = false
+	)
+
+	for err := range ch {
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		changed = true
 	}
 
-	return vs
+	if len(errs) > 0 {
+		return changed, fmt.Errorf("failed to sync nodes: %w", errs[0])
+	}
+
+	return changed, nil
 }

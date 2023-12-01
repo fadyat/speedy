@@ -37,16 +37,23 @@ func (r *rendezvous) GetShard(key string) *Shard {
 	defer r.mx.RUnlock()
 
 	idx := r.getMaxShardIdx(key)
+	if idx == -1 {
+		return nil
+	}
+
 	return r.shards[r.keys[idx]]
 }
 
-func (r *rendezvous) getMaxShardIdx(key string) uint32 {
-	var maxIdx, maxHash uint32
+func (r *rendezvous) getMaxShardIdx(key string) int {
+	var (
+		maxIdx  = -1
+		maxHash uint32
+	)
 
 	for i, shardID := range r.keys {
 		hash := r.hash(key + shardID)
-		if hash > maxHash {
-			maxHash, maxIdx = hash, uint32(i)
+		if hash >= maxHash {
+			maxHash, maxIdx = hash, i
 		}
 	}
 
