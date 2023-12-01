@@ -8,12 +8,10 @@ import (
 )
 
 type consistent struct {
-	mx     sync.RWMutex
-	hash   hashFn
-	shards map[uint32]*Shard
-
-	// orderedKeys is a slice of ordered hashed keys for shards.
+	mx          sync.RWMutex
+	shards      map[uint32]*Shard
 	orderedKeys []uint32
+	hash        hashFn
 }
 
 func NewConsistent(
