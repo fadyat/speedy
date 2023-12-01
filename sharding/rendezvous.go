@@ -26,9 +26,7 @@ func NewRendezvous(
 	defer r.mx.Unlock()
 
 	for _, shard := range shards {
-		if err := r.registerShardUnsafe(shard); err != nil {
-			continue
-		}
+		logRegisterErr(r.registerShardUnsafe(shard))
 	}
 
 	return r

@@ -1,7 +1,6 @@
 package sharding
 
 import (
-	"errors"
 	"slices"
 	"sort"
 	"sync"
@@ -28,9 +27,7 @@ func NewConsistent(
 	defer c.mx.Unlock()
 
 	for _, shard := range shards {
-		if errors.Is(c.registerShardUnsafe(shard), ErrShardAlreadyRegistered) {
-			continue
-		}
+		logRegisterErr(c.registerShardUnsafe(shard))
 	}
 
 	slices.Sort(c.orderedKeys)
