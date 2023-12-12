@@ -91,7 +91,7 @@ func startClient(ctx context.Context, w *wg) {
 
 func replaceClusterConfig(ctx context.Context, periodicity time.Duration) {
 	var (
-		states  = []string{"server.yaml", "server-new.yaml"}
+		states  = []string{serverConfigPath, serverNewConfigPath}
 		current = 0
 	)
 
