@@ -41,4 +41,10 @@ proto:
 run:
 	@export GRPC_PORT=${PORT} && go run cmd/*.go
 
+local:
+	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+		-ldflags="-X 'main.Version=local' -s -w" \
+		-o ./bin/main cmd/*.go
+	@docker compose --file docker-compose.local.yml up --build && docker compose rm -fsv
+
 .PHONY: lint test
