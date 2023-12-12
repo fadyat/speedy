@@ -32,7 +32,7 @@ func main() {
 		),
 	)
 
-	cacheServer := server.NewCacheServer(eviction.NewLRU(c.Cache.Capacity))
+	cacheServer := server.NewCacheServer("", eviction.NewLRU(c.Cache.Capacity))
 	api.RegisterCacheServiceServer(s, cacheServer)
 	reflection.Register(s)
 

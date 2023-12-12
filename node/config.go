@@ -29,10 +29,19 @@ type NodesConfig struct {
 
 	// nodeSelector is used to select a random node, which is used to
 	// fetch the latest cluster config, based on some criteria.
+	//
+	// called only in Sync method, no need to be thread safe.
 	nodeSelector func(nc *NodesConfig) *Node
 }
 
 type NodesConfigOption func(*NodesConfig) error
+
+func WithNodeSelector(selector func(nc *NodesConfig) *Node) NodesConfigOption {
+	return func(c *NodesConfig) error {
+		c.nodeSelector = selector
+		return nil
+	}
+}
 
 func NewNodesConfig(
 	opts ...NodesConfigOption,
@@ -40,7 +49,7 @@ func NewNodesConfig(
 	c := &NodesConfig{
 		nodes:        make(map[string]*Node),
 		keys:         make([]string, 0),
-		nodeSelector: randomNodeSelector,
+		nodeSelector: oneAfterAnotherNodeSelector,
 	}
 
 	for _, opt := range opts {
@@ -92,9 +101,11 @@ func WithInitialState(path string) NodesConfigOption {
 }
 
 func (c *NodesConfig) GetShards() []*sharding.Shard {
-	c.mx.RLock()
-	defer c.mx.RUnlock()
+	c.mx.Lock()
+	defer c.mx.Unlock()
 
+	fmt.Println(c.nodes)
+	fmt.Println(c.keys, cap(c.keys), len(c.keys))
 	var shards = make([]*sharding.Shard, 0, len(c.nodes))
 	for _, k := range c.keys {
 		shards = append(shards, c.nodes[k].ToShard())
@@ -104,6 +115,9 @@ func (c *NodesConfig) GetShards() []*sharding.Shard {
 }
 
 func (c *NodesConfig) Sync() (bool, error) {
+	fmt.Println(c.nodes)
+	fmt.Println(c.keys, cap(c.keys), len(c.keys))
+
 	var sourceOfTruth = c.nodeSelector(c)
 	if sourceOfTruth == nil {
 		return false, errors.New("failed to select node")
@@ -112,7 +126,6 @@ func (c *NodesConfig) Sync() (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// todo: add retry mechanism or select another node
 	desiredConfig, err := sourceOfTruth.Request().GetClusterConfig(ctx, &emptypb.Empty{})
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
@@ -151,7 +164,11 @@ func (c *NodesConfig) syncStates(desired []*api.Node) (bool, error) {
 		close(errCh)
 	}()
 
-	return collect(errCh)
+	changed, err := collect(errCh)
+
+	fmt.Println(c.nodes)
+	fmt.Println(c.keys, cap(c.keys), len(c.keys))
+	return changed, err
 }
 
 func (c *NodesConfig) diff(desired []*api.Node) map[string]*nodeDiff {
@@ -211,7 +228,8 @@ func (c *NodesConfig) teardownNode(n *nodeDiff) error {
 
 	if node, ok := c.nodes[n.id]; ok {
 		delete(c.nodes, n.id)
-		slices.DeleteFunc(c.keys, func(s string) bool { return s == n.id })
+		idx := slices.Index(c.keys, n.id)
+		c.keys = slices.Delete(c.keys, idx, idx+1)
 		if e := node.Close(); e != nil {
 			// ignoring the error, system state need to be updated any way
 			zap.S().Errorf("failed to close node %s: %v", n.id, e)
@@ -230,6 +248,7 @@ func (c *NodesConfig) teardownWithObservability(
 		return
 	}
 
+	fmt.Println("deleted", c.nodes, c.keys)
 	errs <- nil
 }
 

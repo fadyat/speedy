@@ -1,15 +1,12 @@
 package node
 
-import (
-	"crypto/rand"
-	"math/big"
+var (
+	currentNodeIdx = uint64(0)
 )
 
-func randomNodeSelector(nc *NodesConfig) *Node {
-	if len(nc.keys) == 0 {
-		return nil
-	}
-
-	var keyIdx, _ = rand.Int(rand.Reader, big.NewInt(int64(len(nc.keys))))
-	return nc.nodes[nc.keys[keyIdx.Int64()]]
+func oneAfterAnotherNodeSelector(nc *NodesConfig) *Node {
+	currentNodeIdx %= uint64(len(nc.keys))
+	node := nc.nodes[nc.keys[currentNodeIdx]]
+	currentNodeIdx = (currentNodeIdx + 1) % uint64(len(nc.keys))
+	return node
 }

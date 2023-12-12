@@ -1,0 +1,11 @@
+nodes:
+  # current node will be excluded from the list of nodes
+  1:
+    id: 1
+    host: localhost
+    port: 8081
+  # active node, will be used for syncing configuration
+  4:
+    id: 4
+    host: localhost
+    port: 8084

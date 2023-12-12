@@ -64,7 +64,7 @@ func withTemporaryFile(t *testing.T, content string) (path string, cleanup func(
 
 func upServer(ctx context.Context, wg *sync.WaitGroup, t *testing.T, port int) error {
 	s := grpc.NewServer()
-	cacheServer := server.NewCacheServer(eviction.NewLRU(defaultCacheCapacity))
+	cacheServer := server.NewCacheServer("", eviction.NewLRU(defaultCacheCapacity))
 	api.RegisterCacheServiceServer(s, cacheServer)
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
