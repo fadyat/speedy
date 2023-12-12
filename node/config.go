@@ -104,8 +104,6 @@ func (c *NodesConfig) GetShards() []*sharding.Shard {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	fmt.Println(c.nodes)
-	fmt.Println(c.keys, cap(c.keys), len(c.keys))
 	var shards = make([]*sharding.Shard, 0, len(c.nodes))
 	for _, k := range c.keys {
 		shards = append(shards, c.nodes[k].ToShard())
@@ -115,9 +113,6 @@ func (c *NodesConfig) GetShards() []*sharding.Shard {
 }
 
 func (c *NodesConfig) Sync() (bool, error) {
-	fmt.Println(c.nodes)
-	fmt.Println(c.keys, cap(c.keys), len(c.keys))
-
 	var sourceOfTruth = c.nodeSelector(c)
 	if sourceOfTruth == nil {
 		return false, errors.New("failed to select node")
@@ -165,9 +160,6 @@ func (c *NodesConfig) syncStates(desired []*api.Node) (bool, error) {
 	}()
 
 	changed, err := collect(errCh)
-
-	fmt.Println(c.nodes)
-	fmt.Println(c.keys, cap(c.keys), len(c.keys))
 	return changed, err
 }
 
@@ -248,7 +240,6 @@ func (c *NodesConfig) teardownWithObservability(
 		return
 	}
 
-	fmt.Println("deleted", c.nodes, c.keys)
 	errs <- nil
 }
 
