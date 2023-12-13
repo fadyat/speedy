@@ -57,7 +57,7 @@ func TestRendezvous_Flow(t *testing.T) {
 			},
 			ops: func(s *rendezvous, hash hashFn) {
 				shard := s.GetShard("key")
-				require.Equal(t, s.shards[s.keys[0]], shard)
+				require.Equal(t, s.shards[s.keys[1]], shard)
 			},
 		},
 		{

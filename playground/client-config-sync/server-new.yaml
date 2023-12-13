@@ -1,0 +1,5 @@
+nodes:
+  3:
+    id: 3
+    host: localhost
+    port: 8083

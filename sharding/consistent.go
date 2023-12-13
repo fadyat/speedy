@@ -78,12 +78,12 @@ func (c *consistent) DeleteShard(shard *Shard) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	if !c.exists(hash) {
+	idx, found := slices.BinarySearch(c.orderedKeys, hash)
+	if !found {
 		return ErrShardNotFound
 	}
 
 	delete(c.shards, hash)
-	idx := slices.Index(c.orderedKeys, hash)
 	c.orderedKeys = slices.Delete(c.orderedKeys, idx, idx+1)
 	return nil
 }

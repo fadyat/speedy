@@ -47,4 +47,7 @@ local:
 		-o ./bin/main cmd/*.go
 	@docker compose --file docker-compose.local.yml up --build && docker compose rm -fsv
 
+play:
+	@cd playground/client-config-sync && go run *.go
+
 .PHONY: lint test
