@@ -29,20 +29,28 @@ const (
 	nodeStateRemoved
 )
 
-func diff(current, desired []*NodeConfig) map[string]*nodeDiff {
-	var clusterState = make(map[string]*nodeDiff)
-	for _, n := range current {
-		clusterState[n.ID] = newDiff(n, nodeStateRemoved)
+type cacheConfigDiff struct {
+	nodes      map[string]*nodeDiff
+	masterInfo *NodeConfig
+}
+
+func diff(current, desired *CacheConfig) *cacheConfigDiff {
+	var nodes = make(map[string]*nodeDiff)
+	for _, n := range current.Nodes {
+		nodes[n.ID] = newDiff(n, nodeStateRemoved)
 	}
 
-	for _, n := range desired {
-		if _, ok := clusterState[n.ID]; !ok {
-			clusterState[n.ID] = newDiff(n, nodeStateAdded)
+	for _, n := range desired.Nodes {
+		if _, ok := nodes[n.ID]; !ok {
+			nodes[n.ID] = newDiff(n, nodeStateAdded)
 			continue
 		}
 
-		clusterState[n.ID].state = nodeStateSynced
+		nodes[n.ID].state = nodeStateSynced
 	}
 
-	return clusterState
+	return &cacheConfigDiff{
+		nodes:      nodes,
+		masterInfo: desired.MasterInfo,
+	}
 }

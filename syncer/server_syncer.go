@@ -16,12 +16,15 @@ import (
 const (
 	ActiveTimeout = 10 * time.Second
 	Timeout       = 5 * time.Second
+
+	PingTimeout = 1 * time.Second
 )
 
 type ServerSyncer struct {
 	configPath string
 	syncer     *Cluster
 	masterApi  api.CacheServiceClient
+	masterInfo *NodeConfig
 }
 
 func sliceToMap(nodes []*api.Node) map[string]*NodeConfig {
@@ -58,7 +61,7 @@ func NewServerSyncer(configPath string) *ServerSyncer {
 
 			return &CacheConfig{Nodes: sliceToMap(c.Nodes)}, nil
 		}
-		syncStates = func(ctx context.Context, diff map[string]*nodeDiff) (bool, error) {
+		syncStates = func(ctx context.Context, diff *cacheConfigDiff) (bool, error) {
 			return applyChangesToConfigFile(ctx, diff, configPath)
 		}
 	)
@@ -67,11 +70,7 @@ func NewServerSyncer(configPath string) *ServerSyncer {
 	return s
 }
 
-// IsMasterReady returns true if the master api is initialized, false otherwise.
 func (s *ServerSyncer) IsMasterReady() (bool, error) {
-	if s.masterApi != nil {
-		return s.isMasterAlive(context.Background())
-	}
 
 	// when leader election algorithm will work, all nodes will store
 	// master information in the config file, so we can read it from there.
@@ -80,15 +79,35 @@ func (s *ServerSyncer) IsMasterReady() (bool, error) {
 		return false, fmt.Errorf("failed to read cluster config: %w", err)
 	}
 
-	if cfg.MasterInfo == nil {
+	// cluster not initialized yet.
+	if cfg.MasterInfo == nil && s.masterApi == nil {
 		return false, nil
 	}
 
+	// skipping this, because it can still work without master info,
+	// if previous configuration is still valid.
+	if cfg.MasterInfo == nil && s.masterApi != nil {
+		return s.isMasterAlive(context.Background())
+	}
+
+	// if master info is the same, we can skip initialization.
+	if cfg.MasterInfo.Same(s.masterInfo) {
+		return s.isMasterAlive(context.Background())
+	}
+
 	s.masterApi, err = newMasterApi(cfg.MasterInfo.Host, cfg.MasterInfo.Port)
-	return s.masterApi != nil, err
+	if err != nil {
+		return false, fmt.Errorf("failed to initialize master api: %w", err)
+	}
+
+	s.masterInfo = cfg.MasterInfo
+	return true, nil
 }
 
 func (s *ServerSyncer) isMasterAlive(ctx context.Context) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, PingTimeout)
+	defer cancel()
+
 	_, err := s.masterApi.Ping(ctx, &emptypb.Empty{})
 	if err == nil {
 		return true, nil

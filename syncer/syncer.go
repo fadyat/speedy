@@ -10,25 +10,38 @@ type CacheConfig struct {
 	MasterInfo *NodeConfig            `yaml:"master"`
 }
 
-func NewDefaultCacheConfig() *CacheConfig {
-	return &CacheConfig{
-		Nodes: make(map[string]*NodeConfig),
+type Option func(*CacheConfig)
+
+func WithMasterInfo(masterInfo *NodeConfig) Option {
+	return func(c *CacheConfig) {
+		c.MasterInfo = masterInfo
 	}
 }
 
-func (c *CacheConfig) NodesSlice() []*NodeConfig {
-	var nodes = make([]*NodeConfig, 0, len(c.Nodes))
-	for _, n := range c.Nodes {
-		nodes = append(nodes, n)
+func NewDefaultCacheConfig(opts ...Option) *CacheConfig {
+	d := &CacheConfig{
+		Nodes: make(map[string]*NodeConfig),
 	}
 
-	return nodes
+	for _, o := range opts {
+		o(d)
+	}
+
+	return d
 }
 
 type NodeConfig struct {
 	ID   string `yaml:"id"`
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
+}
+
+func (n *NodeConfig) Same(other *NodeConfig) bool {
+	if other == nil {
+		return false
+	}
+
+	return n.ID == other.ID && n.Host == other.Host && n.Port == other.Port
 }
 
 func NewNodeConfig(id, host string, port int) *NodeConfig {
@@ -40,7 +53,7 @@ func NewNodeConfig(id, host string, port int) *NodeConfig {
 }
 
 type stateFetcherFn func(context.Context) (*CacheConfig, error)
-type syncStatesFn func(context.Context, map[string]*nodeDiff) (bool, error)
+type syncStatesFn func(context.Context, *cacheConfigDiff) (bool, error)
 
 type Cluster struct {
 	currentStateFetcher stateFetcherFn
@@ -70,6 +83,6 @@ func (c *Cluster) Sync(ctx context.Context) (changed bool, err error) {
 		return false, fmt.Errorf("failed to get desired state: %w", err)
 	}
 
-	gotoState := diff(currentState.NodesSlice(), desiredState.NodesSlice())
+	gotoState := diff(currentState, desiredState)
 	return c.syncStates(ctx, gotoState)
 }

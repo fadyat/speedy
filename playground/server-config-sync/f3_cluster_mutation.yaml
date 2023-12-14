@@ -1,0 +1,13 @@
+nodes:
+  2:
+    id: 2
+    host: localhost
+    port: 8082
+  1:
+    id: 1
+    host: localhost
+    port: 8081
+master_info:
+  id: 2
+  host: localhost
+  port: 8082

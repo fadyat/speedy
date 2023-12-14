@@ -5,13 +5,15 @@ import (
 	"github.com/fadyat/speedy/pkg"
 )
 
-func applyChangesToConfigFile(_ context.Context, diff map[string]*nodeDiff, configPath string) (bool, error) {
+func applyChangesToConfigFile(_ context.Context, diff *cacheConfigDiff, configPath string) (bool, error) {
 	var (
-		cacheConfig = NewDefaultCacheConfig()
-		changed     bool
+		cacheConfig = NewDefaultCacheConfig(
+			WithMasterInfo(diff.masterInfo),
+		)
+		changed = false
 	)
 
-	for _, d := range diff {
+	for _, d := range diff.nodes {
 		switch d.state {
 		case nodeStateAdded:
 			cacheConfig.Nodes[d.id] = NewNodeConfig(d.id, d.host, d.port)
