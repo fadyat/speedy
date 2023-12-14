@@ -41,5 +41,9 @@ service CacheService {
 
     // GetClusterConfig is used to get the cluster configuration
     // from client side, to have up-to-date cluster configuration.
+    //
+    // Also, it's used in the slave node to get the cluster configuration
+    // from the master node.
     rpc GetClusterConfig (google.protobuf.Empty) returns (ClusterConfig) {}
+    rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }

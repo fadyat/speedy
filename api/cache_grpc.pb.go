@@ -24,6 +24,7 @@ const (
 	CacheService_Put_FullMethodName              = "/api.CacheService/Put"
 	CacheService_Len_FullMethodName              = "/api.CacheService/Len"
 	CacheService_GetClusterConfig_FullMethodName = "/api.CacheService/GetClusterConfig"
+	CacheService_Ping_FullMethodName             = "/api.CacheService/Ping"
 )
 
 // CacheServiceClient is the client API for CacheService service.
@@ -35,7 +36,11 @@ type CacheServiceClient interface {
 	Len(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*LengthResponse, error)
 	// GetClusterConfig is used to get the cluster configuration
 	// from client side, to have up-to-date cluster configuration.
+	//
+	// Also, it's used in the slave node to get the cluster configuration
+	// from the master node.
 	GetClusterConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ClusterConfig, error)
+	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type cacheServiceClient struct {
@@ -82,6 +87,15 @@ func (c *cacheServiceClient) GetClusterConfig(ctx context.Context, in *emptypb.E
 	return out, nil
 }
 
+func (c *cacheServiceClient) Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, CacheService_Ping_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CacheServiceServer is the server API for CacheService service.
 // All implementations must embed UnimplementedCacheServiceServer
 // for forward compatibility
@@ -91,7 +105,11 @@ type CacheServiceServer interface {
 	Len(context.Context, *emptypb.Empty) (*LengthResponse, error)
 	// GetClusterConfig is used to get the cluster configuration
 	// from client side, to have up-to-date cluster configuration.
+	//
+	// Also, it's used in the slave node to get the cluster configuration
+	// from the master node.
 	GetClusterConfig(context.Context, *emptypb.Empty) (*ClusterConfig, error)
+	Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	mustEmbedUnimplementedCacheServiceServer()
 }
 
@@ -110,6 +128,9 @@ func (UnimplementedCacheServiceServer) Len(context.Context, *emptypb.Empty) (*Le
 }
 func (UnimplementedCacheServiceServer) GetClusterConfig(context.Context, *emptypb.Empty) (*ClusterConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterConfig not implemented")
+}
+func (UnimplementedCacheServiceServer) Ping(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedCacheServiceServer) mustEmbedUnimplementedCacheServiceServer() {}
 
@@ -196,6 +217,24 @@ func _CacheService_GetClusterConfig_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CacheService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CacheServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CacheService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CacheServiceServer).Ping(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CacheService_ServiceDesc is the grpc.ServiceDesc for CacheService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -218,6 +257,10 @@ var CacheService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClusterConfig",
 			Handler:    _CacheService_GetClusterConfig_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _CacheService_Ping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

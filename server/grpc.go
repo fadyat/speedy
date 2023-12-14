@@ -51,6 +51,10 @@ func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*ap
 	return &api.ClusterConfig{Nodes: locallyStored}, nil
 }
 
+func (s *CacheServer) Ping(_ context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
+
 func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
 	// todo: can use cache here, to avoid reading from file system every time.
 	//  and read only when the file is updated + update the cache.
