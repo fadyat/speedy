@@ -16,7 +16,6 @@ import (
 
 	empty "github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
@@ -127,18 +126,8 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 	cacheServer.router.GET("/get/:key", cacheServer.GetHandler)
 	cacheServer.router.POST("/put", cacheServer.PutHandler)
 	var grpcServer *grpc.Server
-	if httpsEnabled {
 
-		creds, err := LoadTLSCredentials(clientAuth)
-		if err != nil {
-			cacheServer.logger.Fatalf("failed to create credentials: %v", err)
-		}
-
-		// register service instance with gRPC server
-		grpcServer = grpc.NewServer(grpc.Creds(creds))
-	} else {
-		grpcServer = grpc.NewServer()
-	}
+	grpcServer = grpc.NewServer()
 
 	// set up TLS
 	pb.RegisterCacheServiceServer(grpcServer, &cacheServer)
@@ -181,9 +170,7 @@ func (s *CacheServer) RunAndReturnHTTPServer(port int) *http.Server {
 	// setup http server
 	addr := fmt.Sprintf(":%d", port)
 	var tlsConfig *tls.Config
-	if s.httpsEnabled {
-		tlsConfig, _ = LoadTlsConfig(s.clientAuth)
-	}
+
 	srv := &http.Server{
 		Addr:      addr,
 		Handler:   s.router,
@@ -241,28 +228,12 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (pb.Cach
 		return nil, err
 	}
 
-	if s.httpsEnabled {
-		// set up TLS
-		creds, err := LoadTLSCredentials(s.clientAuth)
-		if err != nil {
-			s.logger.Fatalf("failed to create credentials: %v", err)
-		}
-
-		conn, err = grpc.Dial(
-			addr,
-			grpc.WithTransportCredentials(creds),
-			grpc.WithKeepaliveParams(kacp),
-			grpc.WithTimeout(time.Duration(time.Second)),
-		)
-	} else {
-
-		conn, err = grpc.Dial(
-			addr,
-			grpc.WithInsecure(),
-			grpc.WithKeepaliveParams(kacp),
-			grpc.WithTimeout(time.Duration(time.Second)),
-		)
-	}
+	conn, err = grpc.Dial(
+		addr,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(kacp),
+		grpc.WithTimeout(time.Duration(time.Second)),
+	)
 
 	// set up client
 	return pb.NewCacheServiceClient(conn), nil
@@ -364,7 +335,7 @@ func CreateAndRunAllFromConfig(capacity int, configFile string, verbose bool, in
 	return components
 }
 
-//Set up mutual TLS config
+// Set up mutual TLS config
 func LoadTlsConfig(client_auth bool) (*tls.Config, error) {
 	// Load certificate of the CA who signed client's certificate
 	pemClientCA, err := ioutil.ReadFile("certs/ca-cert.pem")
@@ -402,15 +373,6 @@ func LoadTlsConfig(client_auth bool) (*tls.Config, error) {
 
 }
 
-// Set up mutual TLS config and credentials
-func LoadTLSCredentials(client_auth bool) (credentials.TransportCredentials, error) {
-	config, err := LoadTlsConfig(client_auth)
-	if err != nil {
-		return nil, err
-	}
-	return credentials.NewTLS(config), nil
-}
-
 // Set up logger at the specified verbosity level
 func GetSugaredZapLogger(logFile string, errFile string, verbose bool) *zap.SugaredLogger {
 	var level zap.AtomicLevel
@@ -445,17 +407,9 @@ func NewGrpcClientForNode(node *node.Node, clientAuth bool, httpsEnabled bool) p
 	// set up TLS
 	var conn *grpc.ClientConn
 	var err error
-	if httpsEnabled {
-		creds, err := LoadTLSCredentials(clientAuth)
-		if err != nil {
-			panic(fmt.Sprintf("failed to create credentials: %v", err))
-		}
 
-		// set up grpc connection
-		conn, err = grpc.Dial(fmt.Sprintf("%s:%d", node.Host, node.GrpcPort), grpc.WithTransportCredentials(creds))
-	} else {
-		conn, err = grpc.Dial(fmt.Sprintf("%s:%d", node.Host, node.GrpcPort), grpc.WithInsecure())
-	}
+	conn, err = grpc.Dial(fmt.Sprintf("%s:%d", node.Host, node.GrpcPort), grpc.WithInsecure())
+
 	if err != nil {
 		panic(err)
 	}

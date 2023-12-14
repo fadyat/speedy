@@ -5,7 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/malwaredllc/minicache/server"
+	"github.com/fadyat/speedy/server"
 	"net"
 	"os"
 	"os/signal"
