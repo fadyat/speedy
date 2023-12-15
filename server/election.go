@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
+	api "github.com/fadyat/speedy/api"
 	empty "github.com/golang/protobuf/ptypes/empty"
-	"github.com/malwaredllc/minicache/pb"
 	"os"
 	"time"
 )
@@ -42,11 +42,11 @@ func (s *CacheServer) RunElection() {
 		defer cancel()
 
 		// make status request rpc
-		c, err := s.NewCacheClient(node.Host, int(node.GrpcPort))
+		c, err := s.NewCacheClient(node.Host, int(node.Port))
 		if err != nil {
 			s.logger.Infof("error creating grpc client to node node %s: %v", node.Id, err)
 		}
-		res, err := c.GetPid(ctx, &pb.PidRequest{CallerPid: localPID})
+		res, err := c.GetPid(ctx, &api.PidRequest{CallerPid: localPID})
 		if err != nil {
 			s.logger.Infof("PID request to node %s failed", node.Id)
 			continue
@@ -58,7 +58,7 @@ func (s *CacheServer) RunElection() {
 
 			s.logger.Infof("Sending election request to node %s", node.Id)
 
-			c, err := s.NewCacheClient(node.Host, int(node.GrpcPort))
+			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
 				s.logger.Infof("error creating grpc client to node node %s: %v", node.Id, err)
 			}
@@ -66,7 +66,7 @@ func (s *CacheServer) RunElection() {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			_, err = c.RequestElection(ctx, &pb.ElectionRequest{CallerPid: localPID, CallerNodeId: s.nodeID})
+			_, err = c.RequestElection(ctx, &api.ElectionRequest{CallerPid: localPID, CallerNodeId: s.nodeID})
 			if err != nil {
 				s.logger.Infof("Error requesting node %s run an election: %v", node.Id, err)
 			}
@@ -122,12 +122,12 @@ func (s *CacheServer) AnnounceNewLeader(winner string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
 		// make status request rpc
-		c, err := s.NewCacheClient(node.Host, int(node.GrpcPort))
+		c, err := s.NewCacheClient(node.Host, int(node.Port))
 		if err != nil {
 			s.logger.Infof("error creating grpc client to node node %s: %v", node.Id, err)
 		}
 
-		_, err = c.UpdateLeader(ctx, &pb.NewLeaderAnnouncement{LeaderId: winner})
+		_, err = c.UpdateLeader(ctx, &api.NewLeaderAnnouncement{LeaderId: winner})
 		if err != nil {
 			s.logger.Infof("Election winner announcement to node %s error: %v", node.Id, err)
 		}
@@ -136,7 +136,7 @@ func (s *CacheServer) AnnounceNewLeader(winner string) {
 }
 
 // Returns current leader
-func (s *CacheServer) GetLeader(ctx context.Context, request *pb.LeaderRequest) (*pb.LeaderResponse, error) {
+func (s *CacheServer) GetLeader(ctx context.Context, request *api.LeaderRequest) (*api.LeaderResponse, error) {
 	// while there is no leader, run election
 	for {
 		if s.leaderID != NO_LEADER {
@@ -150,7 +150,7 @@ func (s *CacheServer) GetLeader(ctx context.Context, request *pb.LeaderRequest) 
 			time.Sleep(3 * time.Second)
 		}
 	}
-	return &pb.LeaderResponse{Id: s.leaderID}, nil
+	return &api.LeaderResponse{Id: s.leaderID}, nil
 }
 
 // Checks if leader is alive every 1 second. If no response for 3 seconds, new election is held.
@@ -188,7 +188,7 @@ func (s *CacheServer) StartLeaderHeartbeatMonitor() {
 					continue
 				}
 				// new identity service client
-				c, err := s.NewCacheClient(node.Host, int(node.GrpcPort))
+				c, err := s.NewCacheClient(node.Host, int(node.Port))
 				if err != nil {
 					s.logger.Infof("error creating grpc client to node node %s: %v", node.Id, err)
 					delete(s.nodesConfig.Nodes, node.Id)
@@ -200,7 +200,7 @@ func (s *CacheServer) StartLeaderHeartbeatMonitor() {
 				defer cancel()
 
 				s.logger.Infof("Checking health of node %s", node.Id)
-				_, err = c.GetHeartbeat(ctx, &pb.HeartbeatRequest{CallerNodeId: s.nodeID})
+				_, err = c.GetHeartbeat(ctx, &api.HeartbeatRequest{CallerNodeId: s.nodeID})
 				if err != nil {
 					s.logger.Infof("Node %s healthcheck returned error, removing from cluster", node.Id)
 					delete(s.nodesConfig.Nodes, node.Id)
@@ -240,13 +240,13 @@ func (s *CacheServer) IsLeaderAlive() bool {
 	defer cancel()
 
 	// make status request rpc
-	c, err := s.NewCacheClient(leader.Host, int(leader.GrpcPort))
+	c, err := s.NewCacheClient(leader.Host, int(leader.Port))
 	if err != nil {
 		s.logger.Infof("error creating grpc client to node %s: %v", leader.Id, err)
 		return false
 	}
 
-	_, err = c.GetHeartbeat(ctx, &pb.HeartbeatRequest{CallerNodeId: s.nodeID})
+	_, err = c.GetHeartbeat(ctx, &api.HeartbeatRequest{CallerNodeId: s.nodeID})
 	if err != nil {
 		s.logger.Infof("Leader healthcheck returned error: %v", err)
 		return false
@@ -255,30 +255,30 @@ func (s *CacheServer) IsLeaderAlive() bool {
 }
 
 // gRPC handler for updating the leader after
-func (s *CacheServer) UpdateLeader(ctx context.Context, request *pb.NewLeaderAnnouncement) (*pb.GenericResponse, error) {
+func (s *CacheServer) UpdateLeader(ctx context.Context, request *api.NewLeaderAnnouncement) (*api.GenericResponse, error) {
 	s.logger.Infof("Received announcement leader is %s", request.LeaderId)
 	s.leaderID = request.LeaderId
 	s.decisionChan <- s.leaderID
-	return &pb.GenericResponse{Data: SUCCESS}, nil
+	return &api.GenericResponse{Data: SUCCESS}, nil
 }
 
 // Return current status of this node (leader/follower)
-func (s *CacheServer) GetHeartbeat(ctx context.Context, request *pb.HeartbeatRequest) (*empty.Empty, error) {
+func (s *CacheServer) GetHeartbeat(ctx context.Context, request *api.HeartbeatRequest) (*empty.Empty, error) {
 	s.logger.Infof("Node %s returning heartbeat to node %s", s.nodeID, request.CallerNodeId)
 	return &empty.Empty{}, nil
 }
 
 // gRPC handler that receives a request with the caller's PID and returns its own PID.
 // If the PID is higher than the caller PID, we take over the election process.
-func (s *CacheServer) GetPid(ctx context.Context, request *pb.PidRequest) (*pb.PidResponse, error) {
+func (s *CacheServer) GetPid(ctx context.Context, request *api.PidRequest) (*api.PidResponse, error) {
 	local_pid := int32(os.Getpid())
-	return &pb.PidResponse{Pid: local_pid}, nil
+	return &api.PidResponse{Pid: local_pid}, nil
 }
 
 // gRPC handler which allows other nodes to ask this node to start a new election
-func (s *CacheServer) RequestElection(ctx context.Context, request *pb.ElectionRequest) (*pb.GenericResponse, error) {
+func (s *CacheServer) RequestElection(ctx context.Context, request *api.ElectionRequest) (*api.GenericResponse, error) {
 	// asynchronously run election and return successful response
 	s.logger.Infof("received request for election from %s", request.CallerNodeId)
 	go s.RunElection()
-	return &pb.GenericResponse{Data: SUCCESS}, nil
+	return &api.GenericResponse{Data: SUCCESS}, nil
 }

@@ -7,21 +7,24 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	api "github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/eviction"
+	"github.com/fadyat/speedy/node"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"log"
 	"net"
-	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/malwaredllc/minicache/lru"
-	"github.com/malwaredllc/minicache/node"
-	"github.com/malwaredllc/minicache/pb"
 	"go.uber.org/zap"
 
 	"sync"
@@ -30,26 +33,27 @@ import (
 )
 
 const (
-	PROD_DB = 0
-	TEST_DB = 1
-	SUCCESS = "OK"
+	SUCCESS        = "OK"
+	KeyNotFoundMsg = "key not found"
 )
 
 type CacheServer struct {
+	api.UnimplementedCacheServiceServer
+
+	configPath     string
+	cache          eviction.Algorithm
 	router         *gin.Engine
-	cache          *lru.LruCache
 	logger         *zap.SugaredLogger
 	nodesConfig    node.NodesConfig
 	leaderID       string
 	nodeID         string
 	groupID        string
 	clientAuth     bool
-	httpsEnabled   bool
 	shutdownChan   chan bool
 	decisionChan   chan string
 	electionLock   sync.RWMutex
 	electionStatus bool
-	pb.UnimplementedCacheServiceServer
+	//api.UnimplementedCacheServiceServer
 }
 
 type Pair struct {
@@ -59,7 +63,6 @@ type Pair struct {
 
 type ServerComponents struct {
 	GrpcServer *grpc.Server
-	HttpServer *http.Server
 }
 
 const (
@@ -70,7 +73,7 @@ const (
 // Set node_id param to DYNAMIC to dynamically discover node id.
 // Otherwise, manually set it to a valid nodeID from the config file.
 // Returns tuple of (gRPC server instance, registered Cache CacheServer instance).
-func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string, httpsEnabled bool, clientAuth bool) (*grpc.Server, *CacheServer) {
+func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string, clientAuth bool) (*grpc.Server, *CacheServer) {
 	// get nodes config
 	nodesConfig := node.LoadNodesConfig(configFile)
 
@@ -91,7 +94,7 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 		// if this is not one of the initial nodes in the config file, add it dynamically
 		if _, ok := nodesConfig.Nodes[finalNodeID]; !ok {
 			host, _ := os.Hostname()
-			nodesConfig.Nodes[finalNodeID] = node.NewNode(finalNodeID, host, 8080, 5005)
+			nodesConfig.Nodes[finalNodeID] = node.NewNode(finalNodeID, host, 8080)
 		}
 	} else {
 		finalNodeID = nodeID
@@ -107,111 +110,97 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	// initialize LRU cache
-	lru := lru.NewLruCache(capacity)
-
 	// create server instance
 	cacheServer := CacheServer{
 		router:       router,
-		cache:        &lru,
 		logger:       sugared_logger,
 		nodesConfig:  nodesConfig,
 		nodeID:       finalNodeID,
 		leaderID:     NO_LEADER,
 		clientAuth:   clientAuth,
-		httpsEnabled: httpsEnabled,
 		decisionChan: make(chan string, 1),
 	}
 
-	cacheServer.router.GET("/get/:key", cacheServer.GetHandler)
-	cacheServer.router.POST("/put", cacheServer.PutHandler)
+	//cacheServer.router.GET("/get/:key", cacheServer.GetHandler)
+	//cacheServer.router.POST("/put", cacheServer.PutHandler)
 	var grpcServer *grpc.Server
 
 	grpcServer = grpc.NewServer()
 
 	// set up TLS
-	pb.RegisterCacheServiceServer(grpcServer, &cacheServer)
+	//api.RegisterCacheServiceServer(grpcServer, &cacheServer)
 	reflection.Register(grpcServer)
 	return grpcServer, &cacheServer
 }
 
-// GET /get/:key
-// REST API endpoint to get value for key from the LRU cache
-func (s *CacheServer) GetHandler(c *gin.Context) {
-	result := make(chan gin.H)
-	go func(ctx *gin.Context) {
-		value, err := s.cache.Get(c.Param("key"))
-		if err != nil {
-			result <- gin.H{"message": "key not found"}
-		} else {
-			result <- gin.H{"value": value}
-		}
-	}(c.Copy())
-	c.IndentedJSON(http.StatusOK, <-result)
-}
-
-// POST /put (Body: {"key": "1", "value": "2"})
-// REST API endpoint to put a new key-value pair in the LRU cache
-func (s *CacheServer) PutHandler(c *gin.Context) {
-	result := make(chan gin.H)
-	go func(ctx *gin.Context) {
-		var newPair Pair
-		if err := c.BindJSON(&newPair); err != nil {
-			s.logger.Errorf("unable to deserialize key-value pair from json")
-			return
-		}
-		s.cache.Put(newPair.Key, newPair.Value)
-		result <- gin.H{"key": newPair.Key, "value": newPair.Value}
-	}(c.Copy())
-	c.IndentedJSON(http.StatusCreated, <-result)
-}
-
-func (s *CacheServer) RunAndReturnHTTPServer(port int) *http.Server {
-	// setup http server
-	addr := fmt.Sprintf(":%d", port)
-	var tlsConfig *tls.Config
-
-	srv := &http.Server{
-		Addr:      addr,
-		Handler:   s.router,
-		TLSConfig: tlsConfig,
+func (s *CacheServer) Get(_ context.Context, req *api.GetRequest) (*api.GetResponse, error) {
+	if val, ok := s.cache.Get(req.Key); ok {
+		return &api.GetResponse{Value: val}, nil
 	}
 
-	// run in background
-	go func() {
-		// service connections
-		if s.httpsEnabled {
-			if err := srv.ListenAndServeTLS("certs/server-cert.pem", "certs/server-key.pem"); err != nil {
-				s.logger.Infof("listen: %s\n via HTTPS", err)
-			}
-		} else {
-			if err := srv.ListenAndServe(); err != nil {
-				s.logger.Infof("listen: %s\n via HTTP", err)
-			}
-		}
-	}()
-
-	// return server object so we can shutdown gracefully later
-	return srv
+	return nil, status.Error(codes.NotFound, KeyNotFoundMsg)
 }
 
-// gRPC handler for getting item from cache. Any replica in the group can serve read requests.
-func (s *CacheServer) Get(ctx context.Context, req *pb.GetRequest) (*pb.GetResponse, error) {
-	value, err := s.cache.Get(req.Key)
-	if err != nil {
-		return &pb.GetResponse{Data: "key not found"}, nil
-	}
-	return &pb.GetResponse{Data: value}, nil
-}
-
-// gRPC handler for putting item in cache.
-func (s *CacheServer) Put(ctx context.Context, req *pb.PutRequest) (*empty.Empty, error) {
+func (s *CacheServer) Put(_ context.Context, req *api.PutRequest) (*emptypb.Empty, error) {
 	s.cache.Put(req.Key, req.Value)
-	return &empty.Empty{}, nil
+	return &emptypb.Empty{}, nil
+}
+
+func (s *CacheServer) Len(_ context.Context, _ *emptypb.Empty) (*api.LengthResponse, error) {
+	return &api.LengthResponse{Length: s.cache.Len()}, nil
+}
+
+func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*api.ClusterConfig, error) {
+	locallyStored, err := getLocallyStoredClusterConfig(s.configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.ClusterConfig{Nodes: locallyStored}, nil
+}
+
+func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
+	// todo: can use cache here, to avoid reading from file system every time.
+	//  and read only when the file is updated + update the cache.
+
+	inode, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read initial state file: %w", err)
+	}
+
+	// todo: rewrite this peace of shit
+	var nodes = struct {
+		Nodes map[string]*node.Node `yaml:"nodes"`
+	}{}
+
+	if err = yaml.Unmarshal(inode, &nodes); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal initial state file: %w", err)
+	}
+
+	var apiStyle = make([]*api.Node, 0, len(nodes.Nodes))
+	for _, v := range nodes.Nodes {
+		apiStyle = append(apiStyle, &api.Node{
+			Id:   v.Id,
+			Host: v.Host,
+			Port: v.Port,
+		})
+	}
+
+	return apiStyle, nil
+}
+
+func aNewCacheServer(
+	configPath string,
+	algo eviction.Algorithm,
+) *CacheServer {
+	return &CacheServer{
+		configPath: configPath,
+		cache:      algo,
+	}
 }
 
 // Utility function to get a new Cache Client which uses gRPC secured with mTLS
-func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (pb.CacheServiceClient, error) {
+func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.CacheServiceClient, error) {
 
 	var conn *grpc.ClientConn
 	var err error
@@ -236,7 +225,7 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (pb.Cach
 	)
 
 	// set up client
-	return pb.NewCacheServiceClient(conn), nil
+	return api.NewCacheServiceClient(conn), nil
 }
 
 // Register node with the cluster. This is a function to be called internally by server code (as
@@ -251,14 +240,13 @@ func (s *CacheServer) RegisterNodeInternal() {
 		if node.Id == s.nodeID {
 			continue
 		}
-		req := pb.Node{
-			Id:       localNode.Id,
-			Host:     localNode.Host,
-			RestPort: localNode.RestPort,
-			GrpcPort: localNode.GrpcPort,
+		req := api.Node{
+			Id:   localNode.Id,
+			Host: localNode.Host,
+			Port: localNode.Port,
 		}
 
-		c, err := s.NewCacheClient(node.Host, int(node.GrpcPort))
+		c, err := s.NewCacheClient(node.Host, int(node.Port))
 		if err != nil {
 			s.logger.Errorf("unable to connect to node %s", node.Id)
 			continue
@@ -298,7 +286,7 @@ func CreateAndRunAllFromConfig(capacity int, configFile string, verbose bool, in
 
 	for _, nodeInfo := range config.Nodes {
 		// set up listener TCP connectiion
-		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", nodeInfo.GrpcPort))
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", nodeInfo.Port))
 		if err != nil {
 			panic(err)
 		}
@@ -309,12 +297,11 @@ func CreateAndRunAllFromConfig(capacity int, configFile string, verbose bool, in
 			configFile,
 			verbose,
 			nodeInfo.Id,
-			config.EnableHttps,
 			config.EnableClientAuth,
 		)
 
 		// run gRPC server
-		logger.Infof(fmt.Sprintf("Node %s running gRPC server on port %d...", nodeInfo.Id, nodeInfo.GrpcPort))
+		logger.Infof(fmt.Sprintf("Node %s running gRPC server on port %d...", nodeInfo.Id, nodeInfo.Port))
 		go grpcServer.Serve(listener)
 
 		// register node with cluster
@@ -326,11 +313,7 @@ func CreateAndRunAllFromConfig(capacity int, configFile string, verbose bool, in
 		// start leader heartbeat monitor
 		go cacheServer.StartLeaderHeartbeatMonitor()
 
-		// run HTTP server
-		logger.Infof(fmt.Sprintf("Node %s running REST API server on port %d...", nodeInfo.Id, nodeInfo.RestPort))
-		httpServer := cacheServer.RunAndReturnHTTPServer(int(nodeInfo.RestPort))
-
-		components = append(components, ServerComponents{GrpcServer: grpcServer, HttpServer: httpServer})
+		components = append(components, ServerComponents{GrpcServer: grpcServer})
 	}
 	return components
 }
@@ -403,17 +386,17 @@ func GetSugaredZapLogger(logFile string, errFile string, verbose bool) *zap.Suga
 }
 
 // New gRPC client for a server node
-func NewGrpcClientForNode(node *node.Node, clientAuth bool, httpsEnabled bool) pb.CacheServiceClient {
+func NewGrpcClientForNode(node *node.Node, clientAuth bool) api.CacheServiceClient {
 	// set up TLS
 	var conn *grpc.ClientConn
 	var err error
 
-	conn, err = grpc.Dial(fmt.Sprintf("%s:%d", node.Host, node.GrpcPort), grpc.WithInsecure())
+	conn, err = grpc.Dial(fmt.Sprintf("%s:%d", node.Host, node.Port), grpc.WithInsecure())
 
 	if err != nil {
 		panic(err)
 	}
 
 	// new identity service client
-	return pb.NewCacheServiceClient(conn)
+	return api.NewCacheServiceClient(conn)
 }

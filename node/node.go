@@ -1,86 +1,121 @@
+// The node package contains data structures useful for representing information about nodes in a distributed system,
+// as well as some utility functions for getting information about them.
 package node
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/fadyat/speedy/api"
-	"github.com/fadyat/speedy/sharding"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
+	api "github.com/fadyat/speedy/api"
+	"hash/crc32"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
 	"time"
 )
 
+// NodesConfig struct holds info about all server nodes in the network
+type NodesConfig struct {
+	Nodes            map[string]*Node `json:"nodes"`
+	EnableClientAuth bool             `json:"enable_client_auth"`
+	EnableHttps      bool             `json:"enable_https"`
+	ServerLogfile    string           `json:"server_logfile"`
+	ServerErrfile    string           `json:"server_errfile"`
+	ClientLogfile    string           `json:"client_logfile"`
+	ClientErrfile    string           `json:"client_errfile"`
+}
+
+// Node struct contains all info we need about a server node, as well as
+// a gRPC client to interact with it
 type Node struct {
-	ID   string `yaml:"id"`
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-
-	// storing the gRPC client and the connection to the node, because
-	// it's so expensive to create a new client every time we want to
-	// send a request to the node.
-	cc      *grpc.ClientConn
-	gclient api.CacheServiceClient
+	Id         string `json:"id"`
+	Host       string `json:"host"`
+	Port       uint32 `json:"port"`
+	HashId     uint32
+	GrpcClient api.CacheServiceClient
 }
 
-func (n *Node) connString() string {
-	return fmt.Sprintf("%s:%d", n.Host, n.Port)
+func (n *Node) SetGrpcClient(c api.CacheServiceClient) {
+	n.GrpcClient = c
 }
 
-// RefreshClient recreates the gRPC client, this is useful when the node
-// is started and don't have a client yet.
-func (n *Node) RefreshClient() error {
+func NewNode(id string, host string, port uint32) *Node {
+	return &Node{
+		Id:     id,
+		Host:   host,
+		Port:   port,
+		HashId: HashId(id),
+	}
+}
 
-	// each node has a gRPC client, and it keeps connection to the node
-	// alive, so we don't need to create a new client every time we want
-	// to send a request to the node.
-	//
-	// also, we have an election mechanism to elect a leader node, and our
-	// config is always get updated, before the keepalive timeout expires.
-	if n.gclient != nil && n.cc != nil {
-		return nil
+type Nodes []*Node
+
+// implementing methods required for sorting
+func (n Nodes) Len() int           { return len(n) }
+func (n Nodes) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+func (n Nodes) Less(i, j int) bool { return n[i].HashId < n[j].HashId }
+
+func HashId(key string) uint32 {
+	return crc32.ChecksumIEEE([]byte(key))
+}
+
+// Load nodes config file
+func LoadNodesConfig(configFile string) NodesConfig {
+	file, _ := ioutil.ReadFile(configFile)
+
+	// set defaults
+	nodesConfig := NodesConfig{
+		EnableClientAuth: true,
+		EnableHttps:      true,
+		ServerLogfile:    "minicache.log",
+		ServerErrfile:    "minicache.err",
+		ClientLogfile:    "minicache-client.log",
+		ClientErrfile:    "minicache-client.err",
 	}
 
-	conn, err := grpc.Dial(
-		n.connString(),
-		grpc.WithTransportCredentials(
-			insecure.NewCredentials(),
-		),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second,
-			Timeout:             2 * time.Second,
-			PermitWithoutStream: true,
-		}),
-	)
-	if err != nil {
-		return err
-	}
+	_ = json.Unmarshal([]byte(file), &nodesConfig)
 
-	client := api.NewCacheServiceClient(conn)
-	n.gclient = client
-	n.cc = conn
-	return nil
+	// if config is empty, add 1 node at localhost:8080
+	if len(nodesConfig.Nodes) == 0 {
+		log.Printf("couldn't find config file or it was empty: %s", configFile)
+		log.Println("using default node localhost")
+		nodesConfig = NodesConfig{Nodes: make(map[string]*Node)}
+		defaultNode := NewNode("node0", "localhost", 8080)
+		nodesConfig.Nodes[defaultNode.Id] = defaultNode
+	} else {
+		for _, nodeInfo := range nodesConfig.Nodes {
+			nodeInfo.HashId = HashId(nodeInfo.Id)
+		}
+	}
+	return nodesConfig
 }
 
-// Close closes the node's gRPC client connection.
-//
-// we will close the connection to the node only when the node is removed
-// from the config, and only when the node is down.
-func (n *Node) Close() error {
-	if n.cc != nil {
-		return n.cc.Close()
+// Determine which node ID we are
+func GetCurrentNodeId(config NodesConfig) string {
+	host, _ := os.Hostname()
+	for _, node := range config.Nodes {
+		if node.Host == host {
+			return node.Id
+		}
 	}
-
-	return nil
+	// if host not found, generate random node id
+	return randSeq(5)
 }
 
-func (n *Node) Request() api.CacheServiceClient {
-	return n.gclient
+// Get random node from a given list of nodes
+func GetRandomNode(nodes []*Node) *Node {
+	rand.Seed(time.Now().UnixNano())
+	randomIndex := rand.Intn(len(nodes))
+	return nodes[randomIndex]
 }
 
-func (n *Node) ToShard() *sharding.Shard {
-	return &sharding.Shard{
-		ID:   n.ID,
-		Host: n.Host,
-		Port: n.Port,
+func randSeq(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	letters := []rune("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
 	}
+	node_id := fmt.Sprintf("node-%s", string(b))
+	return node_id
 }

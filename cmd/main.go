@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/server"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -33,7 +32,7 @@ func main() {
 	)
 
 	cacheServer := server.NewCacheServer("", eviction.NewLRU(c.Cache.Capacity))
-	api.RegisterCacheServiceServer(s, cacheServer)
+	//api.RegisterCacheServiceServer(s, cacheServer)
 	reflection.Register(s)
 
 	listener, err := net.Listen("tcp", ":"+c.Server.GrpcPort)

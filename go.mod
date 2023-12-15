@@ -7,7 +7,6 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1
 	github.com/ilyakaznacheev/cleanenv v1.5.0
-	github.com/malwaredllc/minicache v0.0.0-20220601163709-e65b6505ab8b
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 	google.golang.org/grpc v1.58.3
