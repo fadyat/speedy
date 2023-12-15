@@ -5,15 +5,23 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fadyat/speedy/server"
+	"go.uber.org/zap"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
+func initLogger() {
+	lg, _ := zap.NewProduction()
+	zap.ReplaceGlobals(lg)
+}
+
 func main() {
+	initLogger()
+
 	// parse arguments
-	port := flag.Int("ports", 5005, "port number for gRPC server to listen on")
+	port := flag.Int("port", 5005, "port number for gRPC server to listen on")
 	capacity := flag.Int("capacity", 1000, "capacity of LRU cache")
 	clientAuth := flag.Bool("enable_client_auth", true, "require client authentication (used for mTLS)")
 	configFile := flag.String("config", "", "filename of JSON config file with the info for initial nodes")
@@ -37,7 +45,7 @@ func main() {
 	)
 
 	// run gRPC server
-	cacheServer.LogInfoLevel(fmt.Sprintf("Running gRPC server on port %d...", *port))
+	zap.S().Infof("Running gRPC server on port %d...", *port)
 	go grpcServer.Serve(listener)
 
 	// register node with cluster
@@ -55,7 +63,7 @@ func main() {
 	go func() {
 		<-c
 
-		cacheServer.LogInfoLevel("Shutting down gRPC server...")
+		zap.L().Info("Shutting down gRPC server...")
 		grpcServer.Stop()
 
 		//cacheServer.LogInfoLevel("Shutting down HTTP server...")

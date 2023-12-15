@@ -6,6 +6,7 @@ import (
 	. "github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/node"
 	"github.com/golang/protobuf/ptypes/empty"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"time"
@@ -16,7 +17,7 @@ import (
 func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *Node) (*GenericResponse, error) {
 	// if we already have this node registered, return
 	if _, ok := s.nodesConfig.Nodes[nodeInfo.Id]; ok {
-		s.logger.Infof("Node %s already part of cluster", nodeInfo.Id)
+		zap.S().Infof("Node %s already part of cluster", nodeInfo.Id)
 		return &GenericResponse{Data: SUCCESS}, nil
 	}
 
@@ -40,7 +41,7 @@ func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *Nod
 		cfg := ClusterConfig{Nodes: nodes}
 		c, err := s.NewCacheClient(node.Host, int(node.Port))
 		if err != nil {
-			s.logger.Errorf("unable to connect to node %s", node.Id)
+			zap.S().Error("unable to connect to node %s", node.Id)
 			return nil, status.Errorf(
 				codes.InvalidArgument,
 				fmt.Sprintf("Unable to connect to node being registered: %s", node.Id),
@@ -53,7 +54,7 @@ func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *Nod
 
 // gRPC handler for updating cluster config with incoming info
 func (s *CacheServer) UpdateClusterConfig(ctx context.Context, req *ClusterConfig) (*empty.Empty, error) {
-	s.logger.Info("Updating cluster config")
+	zap.L().Info("Updating cluster config")
 	s.nodesConfig.Nodes = make(map[string]*node.Node)
 	for _, nodecfg := range req.Nodes {
 		s.nodesConfig.Nodes[nodecfg.Id] = node.NewNode(nodecfg.Id, nodecfg.Host, nodecfg.Port)
@@ -63,7 +64,7 @@ func (s *CacheServer) UpdateClusterConfig(ctx context.Context, req *ClusterConfi
 
 // private function for server to send out updated cluster config to other nodes
 func (s *CacheServer) updateClusterConfigInternal() {
-	s.logger.Info("Sending out updated cluster config")
+	zap.L().Info("Sending out updated cluster config")
 
 	// send update to other nodes in cluster
 	var nodes []*Node
@@ -85,13 +86,13 @@ func (s *CacheServer) updateClusterConfigInternal() {
 
 		// skip node if error
 		if err != nil {
-			s.logger.Errorf("unable to connect to node %s", node.Id)
+			zap.S().Errorf("unable to connect to node %s", node.Id)
 			continue
 		}
 
 		_, err = c.UpdateClusterConfig(reqCtx, &cfg)
 		if err != nil {
-			s.logger.Infof("error sending cluster config to node %s: %v", node.Id, err)
+			zap.S().Infof("error sending cluster config to node %s: %v", node.Id, err)
 		}
 	}
 }
