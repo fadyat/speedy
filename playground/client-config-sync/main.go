@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fadyat/speedy/api"
+	. "github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/client"
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/server"
@@ -53,7 +53,7 @@ func startServer(ctx context.Context, w *wg, port int) {
 		serverUsedConfigPath,
 		eviction.NewLRU(defaultCacheCapacity),
 	)
-	api.RegisterCacheServiceServer(s, cacheServer)
+	RegisterCacheServiceServer(s, cacheServer)
 
 	w.Go(func() {
 		zap.S().Infof("starting server on port %d", port)

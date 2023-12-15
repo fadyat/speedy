@@ -5,7 +5,7 @@ package server
 import (
 	"context"
 	"fmt"
-	api "github.com/fadyat/speedy/api"
+	. "github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/node"
 	"google.golang.org/grpc/codes"
@@ -34,7 +34,7 @@ const (
 )
 
 type CacheServer struct {
-	api.UnimplementedCacheServiceServer
+	UnimplementedCacheServiceServer
 
 	configPath     string
 	cache          eviction.Algorithm
@@ -129,33 +129,33 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 	return grpcServer, &cacheServer
 }
 
-func (s *CacheServer) Get(_ context.Context, req *api.GetRequest) (*api.GetResponse, error) {
+func (s *CacheServer) Get(_ context.Context, req *GetRequest) (*GetResponse, error) {
 	if val, ok := s.cache.Get(req.Key); ok {
-		return &api.GetResponse{Value: val}, nil
+		return &GetResponse{Value: val}, nil
 	}
 
 	return nil, status.Error(codes.NotFound, KeyNotFoundMsg)
 }
 
-func (s *CacheServer) Put(_ context.Context, req *api.PutRequest) (*emptypb.Empty, error) {
+func (s *CacheServer) Put(_ context.Context, req *PutRequest) (*emptypb.Empty, error) {
 	s.cache.Put(req.Key, req.Value)
 	return &emptypb.Empty{}, nil
 }
 
-func (s *CacheServer) Len(_ context.Context, _ *emptypb.Empty) (*api.LengthResponse, error) {
-	return &api.LengthResponse{Length: s.cache.Len()}, nil
+func (s *CacheServer) Len(_ context.Context, _ *emptypb.Empty) (*LengthResponse, error) {
+	return &LengthResponse{Length: s.cache.Len()}, nil
 }
 
-func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*api.ClusterConfig, error) {
+func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*ClusterConfig, error) {
 	locallyStored, err := getLocallyStoredClusterConfig(s.configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.ClusterConfig{Nodes: locallyStored}, nil
+	return &ClusterConfig{Nodes: locallyStored}, nil
 }
 
-func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
+func getLocallyStoredClusterConfig(path string) ([]*Node, error) {
 	// todo: can use cache here, to avoid reading from file system every time.
 	//  and read only when the file is updated + update the cache.
 
@@ -173,9 +173,9 @@ func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
 		return nil, fmt.Errorf("failed to unmarshal initial state file: %w", err)
 	}
 
-	var apiStyle = make([]*api.Node, 0, len(nodes.Nodes))
+	var apiStyle = make([]*Node, 0, len(nodes.Nodes))
 	for _, v := range nodes.Nodes {
-		apiStyle = append(apiStyle, &api.Node{
+		apiStyle = append(apiStyle, &Node{
 			Id:   v.Id,
 			Host: v.Host,
 			Port: v.Port,
@@ -186,7 +186,7 @@ func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
 }
 
 // Utility function to get a new Cache Client which uses gRPC secured with mTLS
-func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.CacheServiceClient, error) {
+func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (CacheServiceClient, error) {
 
 	var conn *grpc.ClientConn
 	var err error
@@ -211,7 +211,7 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.Cac
 	)
 
 	// set up client
-	return api.NewCacheServiceClient(conn), nil
+	return NewCacheServiceClient(conn), nil
 }
 
 // Register node with the cluster. This is a function to be called internally by server code (as
@@ -226,7 +226,7 @@ func (s *CacheServer) RegisterNodeInternal() {
 		if node.Id == s.nodeID {
 			continue
 		}
-		req := api.Node{
+		req := Node{
 			Id:   localNode.Id,
 			Host: localNode.Host,
 			Port: localNode.Port,
