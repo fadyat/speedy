@@ -5,55 +5,44 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/pkg"
 	"github.com/fadyat/speedy/sharding"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"gopkg.in/yaml.v3"
-	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
+)
+
+const (
+
+	// global timeout for gRPC calls.
+	operationTimeout = 1 * time.Second
 )
 
 // NodesConfig is used as current state of the system, it is used to
 // initialize the system, to update the nodes information, and to
 // retrieve the current state of the system.
 type NodesConfig struct {
-
-	// Node.ID is used as a unique identifier for the node, and it is
-	// used as a key in the nodes map.
-	nodes map[string]*Node `yaml:"nodes"`
-	keys  []string
-	mx    sync.RWMutex
-
-	// nodeSelector is used to select a random node, which is used to
-	// fetch the latest cluster config, based on some criteria.
-	//
-	// called only in Sync method, no need to be thread safe.
+	Nodes        Nodes `yaml:"nodes"`
+	keys         []string
+	mx           sync.RWMutex
 	nodeSelector func(nc *NodesConfig) *Node
 }
 
 type NodesConfigOption func(*NodesConfig) error
 
-func WithNodeSelector(selector func(nc *NodesConfig) *Node) NodesConfigOption {
-	return func(c *NodesConfig) error {
-		c.nodeSelector = selector
-		return nil
-	}
-}
-
 func NewNodesConfig(
 	opts ...NodesConfigOption,
 ) (*NodesConfig, error) {
 	c := &NodesConfig{
-		nodes:        make(map[string]*Node),
+		Nodes:        make(map[string]*Node),
 		keys:         make([]string, 0),
 		nodeSelector: oneAfterAnotherNodeSelector,
 	}
 
-	for _, opt := range opts {
-		if err := opt(c); err != nil {
+	for _, o := range opts {
+		if err := o(c); err != nil {
 			return nil, err
 		}
 	}
@@ -65,33 +54,20 @@ func (c *NodesConfig) GetNode(id string) *Node {
 	c.mx.RLock()
 	defer c.mx.RUnlock()
 
-	return c.nodes[id]
+	return c.Nodes[id]
 }
 
 func WithInitialState(path string) NodesConfigOption {
 	return func(c *NodesConfig) error {
-		inode, err := os.ReadFile(filepath.Clean(path))
+		cfg, err := pkg.FromYaml[NodesConfig](path)
 		if err != nil {
-			return fmt.Errorf("failed to read initial state file: %w", err)
+			return fmt.Errorf("failed to setup nodes from config: %w", err)
 		}
 
-		// todo: rewrite this peace of shit
-		var nodes = struct {
-			Nodes map[string]*Node `yaml:"nodes"`
-		}{}
-
-		if err = yaml.Unmarshal(inode, &nodes); err != nil {
-			return fmt.Errorf("failed to unmarshal initial state file: %w", err)
-		}
-
-		c.nodes = nodes.Nodes
-		c.keys = make([]string, 0, len(c.nodes))
-		for _, n := range c.nodes {
-			c.keys = append(c.keys, n.ID)
-		}
-
-		for _, n := range c.nodes {
-			if e := n.RefreshClient(); e != nil {
+		c.Nodes = cfg.Nodes
+		c.keys = c.Nodes.NodeIDs()
+		for _, n := range c.Nodes {
+			if e := n.RefreshClient(context.Background()); e != nil {
 				return fmt.Errorf("failed to refresh client: %w", e)
 			}
 		}
@@ -104,9 +80,9 @@ func (c *NodesConfig) GetShards() []*sharding.Shard {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	var shards = make([]*sharding.Shard, 0, len(c.nodes))
+	var shards = make([]*sharding.Shard, 0, len(c.Nodes))
 	for _, k := range c.keys {
-		shards = append(shards, c.nodes[k].ToShard())
+		shards = append(shards, c.Nodes[k].ToShard())
 	}
 
 	return shards
@@ -118,7 +94,7 @@ func (c *NodesConfig) Sync() (bool, error) {
 		return false, errors.New("failed to select node")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
 
 	desiredConfig, err := sourceOfTruth.Request().GetClusterConfig(ctx, &emptypb.Empty{})
@@ -167,7 +143,7 @@ func (c *NodesConfig) diff(desired []*api.Node) map[string]*nodeDiff {
 	var clientState = make(map[string]*nodeDiff)
 
 	c.mx.RLock()
-	for _, n := range c.nodes {
+	for _, n := range c.Nodes {
 		clientState[n.ID] = newNodeDiffFromNode(n, nodeStateRemoved)
 	}
 	c.mx.RUnlock()
@@ -188,16 +164,16 @@ func (c *NodesConfig) setupNode(n *nodeDiff) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	if _, ok := c.nodes[n.id]; ok {
+	if _, ok := c.Nodes[n.id]; ok {
 		return fmt.Errorf("node %s already exists", n.id)
 	}
 
 	node := n.toNode()
-	if e := node.RefreshClient(); e != nil {
+	if e := node.RefreshClient(context.Background()); e != nil {
 		return fmt.Errorf("failed to refresh client: %w", e)
 	}
 
-	c.nodes[n.id] = node
+	c.Nodes[n.id] = node
 	c.keys = append(c.keys, n.id)
 	return nil
 }
@@ -218,8 +194,8 @@ func (c *NodesConfig) teardownNode(n *nodeDiff) error {
 	c.mx.Lock()
 	defer c.mx.Unlock()
 
-	if node, ok := c.nodes[n.id]; ok {
-		delete(c.nodes, n.id)
+	if node, ok := c.Nodes[n.id]; ok {
+		delete(c.Nodes, n.id)
 		idx := slices.Index(c.keys, n.id)
 		c.keys = slices.Delete(c.keys, idx, idx+1)
 		if e := node.Close(); e != nil {
