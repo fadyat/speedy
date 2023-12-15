@@ -3,9 +3,9 @@
 package node
 
 import (
-	"encoding/json"
 	"fmt"
 	api "github.com/fadyat/speedy/api"
+	"gopkg.in/yaml.v3"
 	"hash/crc32"
 	"io/ioutil"
 	"log"
@@ -73,7 +73,7 @@ func LoadNodesConfig(configFile string) NodesConfig {
 		ClientErrfile:    "minicache-client.err",
 	}
 
-	_ = json.Unmarshal([]byte(file), &nodesConfig)
+	_ = yaml.Unmarshal([]byte(file), &nodesConfig)
 
 	// if config is empty, add 1 node at localhost:8080
 	if len(nodesConfig.Nodes) == 0 {

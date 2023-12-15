@@ -13,17 +13,16 @@ import (
 
 func main() {
 	// parse arguments
-	grpcPort := flag.Int("grpc_port", 5005, "port number for gRPC server to listen on")
+	port := flag.Int("ports", 5005, "port number for gRPC server to listen on")
 	capacity := flag.Int("capacity", 1000, "capacity of LRU cache")
 	clientAuth := flag.Bool("enable_client_auth", true, "require client authentication (used for mTLS)")
 	configFile := flag.String("config", "", "filename of JSON config file with the info for initial nodes")
-	restPort := flag.Int("rest_port", 8080, "enable REST API for client requests, instead of just gRPC")
 	verbose := flag.Bool("verbose", false, "log events to terminal")
 
 	flag.Parse()
 
 	// set up listener TCP connectiion
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *grpcPort))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +37,7 @@ func main() {
 	)
 
 	// run gRPC server
-	cacheServer.LogInfoLevel(fmt.Sprintf("Running gRPC server on port %d...", *grpcPort))
+	cacheServer.LogInfoLevel(fmt.Sprintf("Running gRPC server on port %d...", *port))
 	go grpcServer.Serve(listener)
 
 	// register node with cluster
@@ -49,9 +48,6 @@ func main() {
 
 	// start leader heartbeat monitor
 	go cacheServer.StartLeaderHeartbeatMonitor()
-
-	// run HTTP server
-	cacheServer.LogInfoLevel(fmt.Sprintf("Running REST API server on port %d...", *restPort))
 
 	// set up shutdown handler and block until sigint or sigterm received
 	c := make(chan os.Signal, 1)
