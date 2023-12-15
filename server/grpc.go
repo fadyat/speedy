@@ -228,7 +228,6 @@ func (s *CacheServer) RegisterNodeInternal() {
 			continue
 		}
 		zap.L().Info("starting grpc server", zap.String("port", s.nodeID))
-		//zap.S().Infof("node %s is registered with cluster", s.nodeID)
 		return
 	}
 }

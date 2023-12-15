@@ -10,13 +10,13 @@ go run main.go
 
 - All servers have the same configuration.
 - Client have a deprecated configuration, which is needed to be updated.
-- In some point of the time, one of the servers is updated with a new configuration.
+- In some point of the time, servers are updated with a new configuration.
 
 After some time client configuration is updated to the latest one.
 
 #### Files description:
 
-- `server.yaml` - server configuration.
-- `server-new.yaml.yaml` - server new configuration.
-- `server-copy.yaml` - temporary file for server configuration copy.
-- `client-init.yaml` - client initial configuration.
+- `f0client.yaml` - client initial configuration.
+- `f1server.yaml` - server configuration.
+- `f2server.yaml` - server new configuration.
+- `server-copy.yaml` - temporary file for sharing server configuration.
