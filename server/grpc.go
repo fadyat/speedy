@@ -1,5 +1,4 @@
-// This package defines a LRU cache server which supports client-side consistent hashing,
-// TLS (and mTLS), client access via both HTTP/gRPC,
+// Package server defines a LRU cache server which supports client-side consistent hashing,
 package server
 
 import (
@@ -9,6 +8,7 @@ import (
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/node"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gopkg.in/yaml.v3"
@@ -38,11 +38,9 @@ type CacheServer struct {
 
 	configPath     string
 	cache          eviction.Algorithm
-	logger         *zap.SugaredLogger
 	nodesConfig    node.NodesConfig
 	leaderID       string
 	nodeID         string
-	groupID        string
 	shutdownChan   chan bool
 	decisionChan   chan string
 	electionLock   sync.RWMutex
@@ -62,11 +60,11 @@ const (
 	DYNAMIC = "DYNAMIC"
 )
 
-// Utility function for creating a new gRPC server secured with mTLS, and registering a cache server service with it.
+// NewCacheServer Utility function for creating a new gRPC server secured with mTLS, and registering a cache server service with it.
 // Set node_id param to DYNAMIC to dynamically discover node id.
 // Otherwise, manually set it to a valid nodeID from the config file.
 // Returns tuple of (gRPC server instance, registered Cache CacheServer instance).
-func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string, clientAuth bool) (*grpc.Server, *CacheServer) {
+func NewCacheServer(configFile, nodeID string) (*grpc.Server, *CacheServer) {
 	// get nodes config
 	nodesConfig := node.LoadNodesConfig(configFile)
 
@@ -74,7 +72,7 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 	var finalNodeID string
 	if nodeID == DYNAMIC {
 		zap.S().Infof("passed node id: %s", nodeID)
-		finalNodeID = node.GetCurrentNodeId(nodesConfig)
+		finalNodeID = node.GetCurrentNodeId(&nodesConfig)
 		zap.S().Infof("final node id: %s", finalNodeID)
 
 		// if this is not one of the initial nodes in the config file, add it dynamically
@@ -104,14 +102,8 @@ func NewCacheServer(capacity int, configFile string, verbose bool, nodeID string
 		decisionChan: make(chan string, 1),
 	}
 
-	//cacheServer.router.GET("/get/:key", cacheServer.GetHandler)
-	//cacheServer.router.POST("/put", cacheServer.PutHandler)
-	var grpcServer *grpc.Server
+	grpcServer := grpc.NewServer()
 
-	grpcServer = grpc.NewServer()
-
-	// set up TLS
-	//api.RegisterCacheServiceServer(grpcServer, &cacheServer)
 	reflection.Register(grpcServer)
 	return grpcServer, &cacheServer
 }
@@ -172,7 +164,7 @@ func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
 	return apiStyle, nil
 }
 
-// Utility function to get a new Cache Client which uses gRPC secured with mTLS
+// NewCacheClient Utility function to get a new Cache Client which uses gRPC secured with mTLS
 func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.CacheServiceClient, error) {
 
 	var kacp = keepalive.ClientParameters{
@@ -184,18 +176,25 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.Cac
 	// set up connection
 	addr := fmt.Sprintf("%s:%d", serverHost, serverPort)
 
-	conn, err := grpc.Dial(
+	creds := credentials.NewClientTLSFromCert(nil, "")
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(
+		ctx,
 		addr,
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(kacp),
-		grpc.WithTimeout(Timeout),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	// set up client
 	return api.NewCacheServiceClient(conn), err
 }
 
-// Register node with the cluster. This is a function to be called internally by server code (as
+// RegisterNodeInternal Register node with the cluster. This is a function to be called internally by server code (as
 // opposed to the gRPC handler to register node, which is what receives the RPC sent by this function).
 func (s *CacheServer) RegisterNodeInternal() {
 	zap.S().Infof("attempting to register %s with cluster", s.nodeID)
@@ -207,27 +206,28 @@ func (s *CacheServer) RegisterNodeInternal() {
 		if node.Id == s.nodeID {
 			continue
 		}
-		req := api.Node{
-			Id:   localNode.Id,
-			Host: localNode.Host,
-			Port: localNode.Port,
-		}
+		func() {
+			req := api.Node{
+				Id:   localNode.Id,
+				Host: localNode.Host,
+				Port: localNode.Port,
+			}
 
-		c, err := s.NewCacheClient(node.Host, int(node.Port))
-		if err != nil {
-			zap.S().Infof("unable to connect to node %s", node.Id)
-			continue
-		}
+			c, err := s.NewCacheClient(node.Host, int(node.Port))
+			if err != nil {
+				zap.S().Infof("unable to connect to node %s", node.Id)
+				return
+			}
 
-		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
-		defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+			defer cancel()
 
-		_, err = c.RegisterNodeWithCluster(ctx, &req)
-		if err != nil {
-			zap.S().Infof("error registering node %s with cluster: %v", s.nodeID, err)
-			continue
-		}
-		zap.L().Info("starting grpc server", zap.String("port", s.nodeID))
-		return
+			_, err = c.RegisterNodeWithCluster(ctx, &req)
+			if err != nil {
+				zap.S().Infof("error registering node %s with cluster: %v", s.nodeID, err)
+				return
+			}
+			zap.L().Info("starting grpc server", zap.String("port", s.nodeID))
+		}()
 	}
 }

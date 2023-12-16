@@ -1,7 +1,7 @@
 package node
 
 //
-//import (
+// import (
 //	"context"
 //	"errors"
 //	"fmt"
@@ -15,12 +15,12 @@ package node
 //	"slices"
 //	"sync"
 //	"time"
-//)
+// )
 //
 //// NodesConfig is used as current state of the system, it is used to
 //// initialize the system, to update the nodes information, and to
 //// retrieve the current state of the system.
-//type NodesConfig struct {
+// type NodesConfig struct {
 //
 //	// Node.ID is used as a unique identifier for the node, and it is
 //	// used as a key in the nodes map.
@@ -33,20 +33,20 @@ package node
 //	//
 //	// called only in Sync method, no need to be thread safe.
 //	nodeSelector func(nc *NodesConfig) *Node
-//}
+// }
 //
-//type NodesConfigOption func(*NodesConfig) error
+// type NodesConfigOption func(*NodesConfig) error
 //
-//func WithNodeSelector(selector func(nc *NodesConfig) *Node) NodesConfigOption {
+// func WithNodeSelector(selector func(nc *NodesConfig) *Node) NodesConfigOption {
 //	return func(c *NodesConfig) error {
 //		c.nodeSelector = selector
 //		return nil
 //	}
-//}
+// }
 //
-//func NewNodesConfig(
+// func NewNodesConfig(
 //	opts ...NodesConfigOption,
-//) (*NodesConfig, error) {
+// ) (*NodesConfig, error) {
 //	c := &NodesConfig{
 //		nodes:        make(map[string]*Node),
 //		keys:         make([]string, 0),
@@ -60,16 +60,16 @@ package node
 //	}
 //
 //	return c, nil
-//}
+// }
 //
-//func (c *NodesConfig) GetNode(id string) *Node {
+// func (c *NodesConfig) GetNode(id string) *Node {
 //	c.mx.RLock()
 //	defer c.mx.RUnlock()
 //
 //	return c.nodes[id]
-//}
+// }
 //
-//func WithInitialState(path string) NodesConfigOption {
+// func WithInitialState(path string) NodesConfigOption {
 //	return func(c *NodesConfig) error {
 //		inode, err := os.ReadFile(filepath.Clean(path))
 //		if err != nil {
@@ -99,9 +99,9 @@ package node
 //
 //		return nil
 //	}
-//}
+// }
 //
-//func (c *NodesConfig) GetShards() []*sharding.Shard {
+// func (c *NodesConfig) GetShards() []*sharding.Shard {
 //	c.mx.Lock()
 //	defer c.mx.Unlock()
 //
@@ -111,9 +111,9 @@ package node
 //	}
 //
 //	return shards
-//}
+// }
 //
-//func (c *NodesConfig) Sync() (bool, error) {
+// func (c *NodesConfig) Sync() (bool, error) {
 //	var sourceOfTruth = c.nodeSelector(c)
 //	if sourceOfTruth == nil {
 //		return false, errors.New("failed to select node")
@@ -128,9 +128,9 @@ package node
 //	}
 //
 //	return c.syncStates(desiredConfig.Nodes)
-//}
+// }
 //
-//func (c *NodesConfig) syncStates(desired []*api.Node) (bool, error) {
+// func (c *NodesConfig) syncStates(desired []*api.Node) (bool, error) {
 //	var (
 //		wg    sync.WaitGroup
 //		errCh = make(chan error)
@@ -162,9 +162,9 @@ package node
 //
 //	changed, err := collect(errCh)
 //	return changed, err
-//}
+// }
 //
-//func (c *NodesConfig) diff(desired []*api.Node) map[string]*nodeDiff {
+// func (c *NodesConfig) diff(desired []*api.Node) map[string]*nodeDiff {
 //	var clientState = make(map[string]*nodeDiff)
 //
 //	c.mx.RLock()
@@ -183,9 +183,9 @@ package node
 //	}
 //
 //	return clientState
-//}
+// }
 //
-//func (c *NodesConfig) setupNode(n *nodeDiff) error {
+// func (c *NodesConfig) setupNode(n *nodeDiff) error {
 //	c.mx.Lock()
 //	defer c.mx.Unlock()
 //
@@ -201,11 +201,11 @@ package node
 //	c.nodes[n.id] = node
 //	c.keys = append(c.keys, n.id)
 //	return nil
-//}
+// }
 //
-//func (c *NodesConfig) setupWithObservability(
+// func (c *NodesConfig) setupWithObservability(
 //	errs chan<- error, d *nodeDiff,
-//) {
+// ) {
 //	zap.S().Infof("adding node %s", d.id)
 //	if err := c.setupNode(d); err != nil {
 //		errs <- fmt.Errorf("failed to setup node: %w", err)
@@ -213,9 +213,9 @@ package node
 //	}
 //
 //	errs <- nil
-//}
+// }
 //
-//func (c *NodesConfig) teardownNode(n *nodeDiff) error {
+// func (c *NodesConfig) teardownNode(n *nodeDiff) error {
 //	c.mx.Lock()
 //	defer c.mx.Unlock()
 //
@@ -230,11 +230,11 @@ package node
 //	}
 //
 //	return nil
-//}
+// }
 //
-//func (c *NodesConfig) teardownWithObservability(
+// func (c *NodesConfig) teardownWithObservability(
 //	errs chan<- error, d *nodeDiff,
-//) {
+// ) {
 //	zap.S().Infof("removing node %s", d.id)
 //	if err := c.teardownNode(d); err != nil {
 //		errs <- fmt.Errorf("failed to teardown node: %w", err)
@@ -242,9 +242,9 @@ package node
 //	}
 //
 //	errs <- nil
-//}
+// }
 //
-//func collect(ch <-chan error) (bool, error) {
+// func collect(ch <-chan error) (bool, error) {
 //	var (
 //		errs    = make([]error, 0)
 //		changed = false
@@ -264,4 +264,4 @@ package node
 //	}
 //
 //	return changed, nil
-//}
+// }

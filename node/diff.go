@@ -1,27 +1,27 @@
 package node
 
 //
-//import "github.com/fadyat/speedy/api"
+// import "github.com/fadyat/speedy/api"
 //
-//type nodeDiff struct {
+// type nodeDiff struct {
 //	id    string
 //	host  string
 //	port  int
 //	state nodeState
-//}
+// }
 //
-//func (d *nodeDiff) toNode() *Node {
+// func (d *nodeDiff) toNode() *Node {
 //	return &Node{
 //		ID:   d.id,
 //		Host: d.host,
 //		Port: d.port,
 //	}
-//}
+// }
 //
-//func newNodeDiffFromApiNode(
+// func newNodeDiffFromApiNode(
 //	n *api.Node,
 //	state nodeState,
-//) *nodeDiff {
+// ) *nodeDiff {
 //	return &nodeDiff{
 //		id:    n.Id,
 //		host:  n.Host,
@@ -30,21 +30,21 @@ package node
 //	}
 //}
 //
-//func newNodeDiffFromNode(
+// func newNodeDiffFromNode(
 //	n *Node,
 //	state nodeState,
-//) *nodeDiff {
+// ) *nodeDiff {
 //	return &nodeDiff{
 //		id:    n.ID,
 //		host:  n.Host,
 //		port:  n.Port,
 //		state: state,
 //	}
-//}
+// }
 //
-//type nodeState int
+// type nodeState int
 //
-//const (
+// const (
 //	// nodeStateSynced client have connection to the node and it's up-to-date.
 //	nodeStateSynced nodeState = iota
 //
@@ -53,4 +53,4 @@ package node
 //
 //	// nodeStateRemoved client needs to close the connection to the node.
 //	nodeStateRemoved
-//)
+// )
