@@ -4,7 +4,7 @@ package server
 import (
 	"context"
 	"fmt"
-	api "github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/api"
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/node"
 	"google.golang.org/grpc/codes"

@@ -5,7 +5,7 @@ package main
 //	"context"
 //	"errors"
 //	"fmt"
-//	api "github.com/fadyat/speedy/api"
+//	"github.com/fadyat/speedy/api"
 //	"github.com/fadyat/speedy/client"
 //	"github.com/fadyat/speedy/eviction"
 //	"github.com/fadyat/speedy/pkg"

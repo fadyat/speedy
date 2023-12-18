@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	api "github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/api"
 	"gopkg.in/yaml.v3"
 	"hash/crc32"
 	"log"

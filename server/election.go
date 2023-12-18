@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	api "github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/api"
 	"github.com/golang/protobuf/ptypes/empty"
 	"go.uber.org/zap"
 	"os"

@@ -4,7 +4,7 @@ package client
 // import (
 //	"context"
 //	"fmt"
-//	api "github.com/fadyat/speedy/api"
+//	"github.com/fadyat/speedy/api"
 //	"github.com/fadyat/speedy/node"
 //	"github.com/fadyat/speedy/sharding"
 //	"go.uber.org/zap"

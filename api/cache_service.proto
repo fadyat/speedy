@@ -1,8 +1,10 @@
-
 syntax = "proto3";
-option go_package = "./";
+
+package api;
+
 import "google/protobuf/empty.proto";
-package pb;
+
+option go_package = "./api";
 
 // get/put messages
 message GetRequest {
