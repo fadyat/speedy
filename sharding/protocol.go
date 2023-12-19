@@ -41,7 +41,7 @@ type hashFn func(key string) uint32
 type Shard struct {
 	ID   string `yaml:"id"`
 	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Port uint32 `yaml:"port"`
 }
 
 type Algorithm interface {
