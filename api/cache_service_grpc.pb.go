@@ -48,7 +48,7 @@ type CacheServiceClient interface {
 	UpdateLeader(ctx context.Context, in *NewLeaderAnnouncement, opts ...grpc.CallOption) (*GenericResponse, error)
 	RequestElection(ctx context.Context, in *ElectionRequest, opts ...grpc.CallOption) (*GenericResponse, error)
 	// Cluster management
-	GetClusterConfig(ctx context.Context, in *ClusterConfigRequest, opts ...grpc.CallOption) (*ClusterConfig, error)
+	GetClusterConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ClusterConfig, error)
 	UpdateClusterConfig(ctx context.Context, in *ClusterConfig, opts ...grpc.CallOption) (*empty.Empty, error)
 	RegisterNodeWithCluster(ctx context.Context, in *Node, opts ...grpc.CallOption) (*GenericResponse, error)
 }
@@ -133,7 +133,7 @@ func (c *cacheServiceClient) RequestElection(ctx context.Context, in *ElectionRe
 	return out, nil
 }
 
-func (c *cacheServiceClient) GetClusterConfig(ctx context.Context, in *ClusterConfigRequest, opts ...grpc.CallOption) (*ClusterConfig, error) {
+func (c *cacheServiceClient) GetClusterConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ClusterConfig, error) {
 	out := new(ClusterConfig)
 	err := c.cc.Invoke(ctx, CacheService_GetClusterConfig_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -175,7 +175,7 @@ type CacheServiceServer interface {
 	UpdateLeader(context.Context, *NewLeaderAnnouncement) (*GenericResponse, error)
 	RequestElection(context.Context, *ElectionRequest) (*GenericResponse, error)
 	// Cluster management
-	GetClusterConfig(context.Context, *ClusterConfigRequest) (*ClusterConfig, error)
+	GetClusterConfig(context.Context, *empty.Empty) (*ClusterConfig, error)
 	UpdateClusterConfig(context.Context, *ClusterConfig) (*empty.Empty, error)
 	RegisterNodeWithCluster(context.Context, *Node) (*GenericResponse, error)
 	mustEmbedUnimplementedCacheServiceServer()
@@ -209,7 +209,7 @@ func (UnimplementedCacheServiceServer) UpdateLeader(context.Context, *NewLeaderA
 func (UnimplementedCacheServiceServer) RequestElection(context.Context, *ElectionRequest) (*GenericResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestElection not implemented")
 }
-func (UnimplementedCacheServiceServer) GetClusterConfig(context.Context, *ClusterConfigRequest) (*ClusterConfig, error) {
+func (UnimplementedCacheServiceServer) GetClusterConfig(context.Context, *empty.Empty) (*ClusterConfig, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterConfig not implemented")
 }
 func (UnimplementedCacheServiceServer) UpdateClusterConfig(context.Context, *ClusterConfig) (*empty.Empty, error) {
@@ -376,7 +376,7 @@ func _CacheService_RequestElection_Handler(srv interface{}, ctx context.Context,
 }
 
 func _CacheService_GetClusterConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterConfigRequest)
+	in := new(empty.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -388,7 +388,7 @@ func _CacheService_GetClusterConfig_Handler(srv interface{}, ctx context.Context
 		FullMethod: CacheService_GetClusterConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CacheServiceServer).GetClusterConfig(ctx, req.(*ClusterConfigRequest))
+		return srv.(CacheServiceServer).GetClusterConfig(ctx, req.(*empty.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

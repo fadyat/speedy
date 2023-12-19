@@ -10,4 +10,4 @@ COPY . .
 
 RUN go build
 
-CMD ["./speedy","-config","playground/client-config-sync/server.yaml","-capacity","100","-verbose"]
+CMD ["./speedy","-config","playground/client-config-sync/server.yaml"]

@@ -3,74 +3,63 @@
 package node
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/sharding"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"gopkg.in/yaml.v3"
-	"hash/crc32"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 )
-
-// NodesConfig struct holds info about all server nodes in the network
-type NodesConfig struct {
-	Nodes            map[string]*Node `json:"nodes"`
-	EnableClientAuth bool             `json:"enable_client_auth"`
-	EnableHttps      bool             `json:"enable_https"`
-	ServerLogfile    string           `json:"server_logfile"`
-	ServerErrfile    string           `json:"server_errfile"`
-	ClientLogfile    string           `json:"client_logfile"`
-	ClientErrfile    string           `json:"client_errfile"`
-}
 
 // Node struct contains all info we need about a server node, as well as
 // a gRPC client to interact with it
 type Node struct {
-	Id         string `json:"id"`
-	Host       string `json:"host"`
-	Port       uint32 `json:"port"`
-	HashId     uint32
-	GrpcClient api.CacheServiceClient
+	ID   string `yaml:"id"`
+	Host string `yaml:"host"`
+	Port uint32 `yaml:"port"`
+
+	// storing the gRPC client and the connection to the node, because
+	// it's so expensive to create a new client every time we want to
+	// send a request to the node.
+	cc      *grpc.ClientConn
+	gclient api.CacheServiceClient
 }
 
 func (n *Node) SetGrpcClient(c api.CacheServiceClient) {
-	n.GrpcClient = c
+	n.gclient = c
 }
 
 func NewNode(id, host string, port uint32) *Node {
 	return &Node{
-		Id:     id,
-		Host:   host,
-		Port:   port,
-		HashId: HashId(id),
+		ID:   id,
+		Host: host,
+		Port: port,
 	}
 }
 
-type Nodes []*Node
-
-// Len implementing methods required for sorting
-func (n Nodes) Len() int           { return len(n) }
-func (n Nodes) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
-func (n Nodes) Less(i, j int) bool { return n[i].HashId < n[j].HashId }
-
-func HashId(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key))
+func (n *Node) connString() string {
+	return fmt.Sprintf("%s:%d", n.Host, n.Port)
 }
 
-// LoadNodesConfig Load nodes config file
-func LoadNodesConfig(configFile string) NodesConfig {
+type Nodes map[string]*Node
+
+func LoadNodesConfig(configFile string) *NodesConfig {
 	file, _ := os.ReadFile(filepath.Clean(configFile))
 
 	// set defaults
 	nodesConfig := NodesConfig{
-		EnableClientAuth: true,
-		EnableHttps:      true,
-		ServerLogfile:    "minicache.log",
-		ServerErrfile:    "minicache.err",
-		ClientLogfile:    "minicache-client.log",
-		ClientErrfile:    "minicache-client.err",
+		ServerLogfile: "minicache.log",
+		ServerErrfile: "minicache.err",
+		ClientLogfile: "minicache-client.log",
+		ClientErrfile: "minicache-client.err",
 	}
 
 	_ = yaml.Unmarshal(file, &nodesConfig)
@@ -81,13 +70,9 @@ func LoadNodesConfig(configFile string) NodesConfig {
 		log.Println("using default node localhost")
 		nodesConfig = NodesConfig{Nodes: make(map[string]*Node)}
 		defaultNode := NewNode("node0", "localhost", 8080)
-		nodesConfig.Nodes[defaultNode.Id] = defaultNode
-	} else {
-		for _, nodeInfo := range nodesConfig.Nodes {
-			nodeInfo.HashId = HashId(nodeInfo.Id)
-		}
+		nodesConfig.Nodes[defaultNode.ID] = defaultNode
 	}
-	return nodesConfig
+	return &nodesConfig
 }
 
 // GetCurrentNodeId Determine which node ID we are
@@ -95,7 +80,7 @@ func GetCurrentNodeId(config *NodesConfig) string {
 	host, _ := os.Hostname()
 	for _, node := range config.Nodes {
 		if node.Host == host {
-			return node.Id
+			return node.ID
 		}
 	}
 	// if host not found, generate random node id
@@ -109,6 +94,43 @@ func GetRandomNode(nodes []*Node) *Node {
 		return nil
 	}
 	return nodes[randomIndex]
+}
+
+// RefreshClient recreates the gRPC client, this is useful when the node
+// is started and don't have a client yet.
+func (n *Node) RefreshClient(ctx context.Context) error {
+
+	// each node has a gRPC client, and it keeps connection to the node
+	// alive, so we don't need to create a new client every time we want
+	// to send a request to the node.
+	//
+	// also, we have an election mechanism to elect a leader node, and our
+	// config is always get updated, before the keepalive timeout expires.
+	if n.gclient != nil && n.cc != nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(
+		ctx,
+		n.connString(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                10 * time.Second,
+			Timeout:             2 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
+	if err != nil {
+		return err
+	}
+
+	n.gclient = api.NewCacheServiceClient(conn)
+	n.cc = conn
+	return nil
 }
 
 func randSeq(n int) string {
@@ -148,4 +170,24 @@ func cryptoRandBytes(n int) ([]byte, error) {
 		return nil, err
 	}
 	return bytes, nil
+}
+
+func (n *Node) Close() error {
+	if n.cc != nil {
+		return n.cc.Close()
+	}
+
+	return nil
+}
+
+func (n *Node) Request() api.CacheServiceClient {
+	return n.gclient
+}
+
+func (n *Node) ToShard() *sharding.Shard {
+	return &sharding.Shard{
+		ID:   n.ID,
+		Host: n.Host,
+		Port: n.Port,
+	}
 }

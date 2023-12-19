@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/fadyat/speedy/api"
+	"github.com/fadyat/speedy/server"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -29,6 +31,9 @@ func main() {
 		),
 	)
 
+	grpcServer, cacheServer := server.NewGrpcServer("", server.DYNAMIC)
+
+	api.RegisterCacheServiceServer(s, cacheServer)
 	reflection.Register(s)
 
 	listener, err := net.Listen("tcp", ":"+c.Server.GrpcPort)
@@ -36,8 +41,13 @@ func main() {
 		zap.L().Fatal("failed to create listener", zap.Error(err))
 	}
 
-	zap.L().Info("starting grpc server", zap.String("port", c.Server.GrpcPort), zap.String("version", Version))
-	if e := s.Serve(listener); e != nil {
-		zap.L().Fatal("failed to start grpc server", zap.Error(e))
-	}
+	zap.S().Infof("Running gRPC server on port %s...", c.Server.GrpcPort)
+	go grpcServer.Serve(listener)
+
+	// register node with cluster
+	cacheServer.RegisterNodeInternal()
+
+	// run initial election
+	cacheServer.RunElection()
+
 }

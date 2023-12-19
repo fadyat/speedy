@@ -92,7 +92,7 @@ service CacheService {
   rpc RequestElection(ElectionRequest) returns (GenericResponse);
 
   // Cluster management
-  rpc GetClusterConfig(ClusterConfigRequest) returns (ClusterConfig);
+  rpc GetClusterConfig(google.protobuf.Empty) returns (ClusterConfig);
   rpc UpdateClusterConfig(ClusterConfig) returns (google.protobuf.Empty);
   rpc RegisterNodeWithCluster(Node) returns (GenericResponse);
 }

@@ -8,7 +8,8 @@ import (
 	"github.com/fadyat/speedy/eviction"
 	"github.com/fadyat/speedy/node"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gopkg.in/yaml.v3"
@@ -16,21 +17,17 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/reflection"
-
-	"go.uber.org/zap"
-
 	"sync"
-
-	"github.com/gin-gonic/gin"
 )
 
 const (
 	SUCCESS        = "OK"
 	KeyNotFoundMsg = "key not found"
-	Timeout        = time.Second
+	Timeout        = 1 * time.Second
 )
 
 type CacheServer struct {
@@ -38,7 +35,7 @@ type CacheServer struct {
 
 	configPath     string
 	cache          eviction.Algorithm
-	nodesConfig    node.NodesConfig
+	nodesConfig    *node.NodesConfig
 	leaderID       string
 	nodeID         string
 	shutdownChan   chan bool
@@ -64,7 +61,18 @@ const (
 // Set node_id param to DYNAMIC to dynamically discover node id.
 // Otherwise, manually set it to a valid nodeID from the config file.
 // Returns tuple of (gRPC server instance, registered Cache CacheServer instance).
-func NewCacheServer(configFile, nodeID string) (*grpc.Server, *CacheServer) {
+
+func NewCacheServer(
+	configPath string,
+	algo eviction.Algorithm,
+) *CacheServer {
+	return &CacheServer{
+		configPath: configPath,
+		cache:      algo,
+	}
+}
+
+func NewGrpcServer(configFile, nodeID string) (*grpc.Server, *CacheServer) {
 	// get nodes config
 	nodesConfig := node.LoadNodesConfig(configFile)
 
@@ -72,7 +80,7 @@ func NewCacheServer(configFile, nodeID string) (*grpc.Server, *CacheServer) {
 	var finalNodeID string
 	if nodeID == DYNAMIC {
 		zap.S().Infof("passed node id: %s", nodeID)
-		finalNodeID = node.GetCurrentNodeId(&nodesConfig)
+		finalNodeID = node.GetCurrentNodeId(nodesConfig)
 		zap.S().Infof("final node id: %s", finalNodeID)
 
 		// if this is not one of the initial nodes in the config file, add it dynamically
@@ -104,6 +112,7 @@ func NewCacheServer(configFile, nodeID string) (*grpc.Server, *CacheServer) {
 
 	grpcServer := grpc.NewServer()
 
+	api.RegisterCacheServiceServer(grpcServer, &cacheServer)
 	reflection.Register(grpcServer)
 	return grpcServer, &cacheServer
 }
@@ -135,7 +144,7 @@ func (s *CacheServer) GetClusterConfig(_ context.Context, _ *emptypb.Empty) (*ap
 }
 
 func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
-	// todo: can use cache here, to avoid reading from file system every time.
+	// fixme: can use cache here, to avoid reading from file system every time.
 	//  and read only when the file is updated + update the cache.
 
 	inode, err := os.ReadFile(filepath.Clean(path))
@@ -155,7 +164,7 @@ func getLocallyStoredClusterConfig(path string) ([]*api.Node, error) {
 	var apiStyle = make([]*api.Node, 0, len(nodes.Nodes))
 	for _, v := range nodes.Nodes {
 		apiStyle = append(apiStyle, &api.Node{
-			Id:   v.Id,
+			Id:   v.ID,
 			Host: v.Host,
 			Port: v.Port,
 		})
@@ -176,14 +185,13 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.Cac
 	// set up connection
 	addr := fmt.Sprintf("%s:%d", serverHost, serverPort)
 
-	creds := credentials.NewClientTLSFromCert(nil, "")
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 
 	conn, err := grpc.DialContext(
 		ctx,
 		addr,
-		grpc.WithTransportCredentials(creds),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(kacp),
 	)
 	if err != nil {
@@ -203,19 +211,19 @@ func (s *CacheServer) RegisterNodeInternal() {
 	// try to register with each node until one returns a successful response
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 		func() {
 			req := api.Node{
-				Id:   localNode.Id,
+				Id:   localNode.ID,
 				Host: localNode.Host,
 				Port: localNode.Port,
 			}
 
 			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
-				zap.S().Infof("unable to connect to node %s", node.Id)
+				zap.S().Infof("unable to connect to node %s", node.ID)
 				return
 			}
 

@@ -34,7 +34,7 @@ func (s *CacheServer) RunElection() {
 
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 		func() {
@@ -45,24 +45,24 @@ func (s *CacheServer) RunElection() {
 			// make status request rpc
 			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
-				zap.S().Infof("error creating grpc client to node node %s: %v", node.Id, err)
+				zap.S().Infof("error creating grpc client to node %s: %v", node.ID, err)
 			}
 			res, err := c.GetPid(ctx, &api.PidRequest{CallerPid: localPID})
 			if err != nil {
-				zap.S().Infof("PID request to node %s failed", node.Id)
+				zap.S().Infof("PID request to node %s failed", node.ID)
 				return
 			}
 
 			// if response has a higher PID (use node id as tie-breaker), we send it an election request and wait to receive
 			// the election winner announcement.
-			zap.S().Infof("Received PID %d from node %s (vs local PID %d on node %s)", res.Pid, node.Id, localPID, s.nodeID)
-			if (localPID < res.Pid) || (res.Pid == localPID && s.nodeID < node.Id) {
+			zap.S().Infof("Received PID %d from node %s (vs local PID %d on node %s)", res.Pid, node.ID, localPID, s.nodeID)
+			if (localPID < res.Pid) || (res.Pid == localPID && s.nodeID < node.ID) {
 
-				zap.S().Infof("Sending election request to node %s", node.Id)
+				zap.S().Infof("Sending election request to node %s", node.ID)
 
 				c, err := s.NewCacheClient(node.Host, int(node.Port))
 				if err != nil {
-					zap.S().Infof("error creating grpc client to node node %s: %v", node.Id, err)
+					zap.S().Infof("error creating grpc client to node node %s: %v", node.ID, err)
 				}
 
 				ctx, cancel := context.WithTimeout(context.Background(), 3*Timeout)
@@ -70,7 +70,7 @@ func (s *CacheServer) RunElection() {
 
 				_, err = c.RequestElection(ctx, &api.ElectionRequest{CallerPid: localPID, CallerNodeId: s.nodeID})
 				if err != nil {
-					zap.S().Infof("Error requesting node %s run an election: %v", node.Id, err)
+					zap.S().Infof("Error requesting node %s run an election: %v", node.ID, err)
 				}
 
 				zap.L().Info("Waiting for decision...")
@@ -86,7 +86,7 @@ func (s *CacheServer) RunElection() {
 						s.electionLock.Unlock()
 						return
 					}
-				case <-time.After(5 * Timeout):
+				case <-time.After(30 * Timeout):
 					zap.L().Info("Timed out waiting for decision. Starting new election.")
 					s.RunElection()
 
@@ -118,7 +118,7 @@ func (s *CacheServer) AnnounceNewLeader(winner string) {
 	// if no response from any higher node IDs, declare self the winner and announce to all
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 		func() {
@@ -127,12 +127,12 @@ func (s *CacheServer) AnnounceNewLeader(winner string) {
 			// make status request rpc
 			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
-				zap.S().Infof("error creating grpc client to node node %s: %v", node.Id, err)
+				zap.S().Infof("error creating grpc client to node node %s: %v", node.ID, err)
 			}
 
 			_, err = c.UpdateLeader(ctx, &api.NewLeaderAnnouncement{LeaderId: winner})
 			if err != nil {
-				zap.S().Infof("Election winner announcement to node %s error: %v", node.Id, err)
+				zap.S().Infof("Election winner announcement to node %s error: %v", node.ID, err)
 			}
 			defer cancel()
 		}()
@@ -140,10 +140,9 @@ func (s *CacheServer) AnnounceNewLeader(winner string) {
 }
 
 // GetLeader Returns current leader
-func (s *CacheServer) GetLeader(ctx context.Context) (*api.LeaderResponse, error) {
+func (s *CacheServer) GetLeader(ctx context.Context, req *api.LeaderRequest) (*api.LeaderResponse, error) {
 	// while there is no leader, run election
-	ticker := time.NewTicker(3 * time.Second)
-
+	ticker := time.NewTicker(Timeout)
 	for {
 		if s.leaderID != NO_LEADER {
 			return &api.LeaderResponse{Id: s.leaderID}, nil
@@ -201,7 +200,7 @@ func (s *CacheServer) SyncNodesConfig() {
 	modified := false
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 		func() {
@@ -209,8 +208,8 @@ func (s *CacheServer) SyncNodesConfig() {
 			// new identity service client
 			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
-				zap.S().Infof("error creating grpc client to node node %s: %v", node.Id, err)
-				delete(s.nodesConfig.Nodes, node.Id)
+				zap.S().Infof("error creating grpc client to node %s: %v", node.ID, err)
+				delete(s.nodesConfig.Nodes, node.ID)
 				modified = true
 				return
 			}
@@ -218,11 +217,11 @@ func (s *CacheServer) SyncNodesConfig() {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*Timeout)
 			defer cancel()
 
-			zap.S().Infof("Checking health of node %s", node.Id)
+			zap.S().Infof("Checking health of node %s", node.ID)
 			_, err = c.GetHeartbeat(ctx, &api.HeartbeatRequest{CallerNodeId: s.nodeID})
 			if err != nil {
-				zap.S().Infof("Node %s healthcheck returned error, removing from cluster", node.Id)
-				delete(s.nodesConfig.Nodes, node.Id)
+				zap.S().Infof("Node %s healthcheck returned error, removing from cluster", node.ID)
+				delete(s.nodesConfig.Nodes, node.ID)
 				modified = true
 			}
 		}()
@@ -260,7 +259,7 @@ func (s *CacheServer) IsLeaderAlive() bool {
 	// make status request rpc
 	c, err := s.NewCacheClient(leader.Host, int(leader.Port))
 	if err != nil {
-		zap.S().Infof("error creating grpc client to node %s: %v", leader.Id, err)
+		zap.S().Infof("error creating grpc client to node %s: %v", leader.ID, err)
 		return false
 	}
 
@@ -289,8 +288,8 @@ func (s *CacheServer) GetHeartbeat(ctx context.Context, request *api.HeartbeatRe
 // GetPid gRPC handler that receives a request with the caller's PID and returns its own PID.
 // If the PID is higher than the caller PID, we take over the election process.
 func (s *CacheServer) GetPid(ctx context.Context, request *api.PidRequest) (*api.PidResponse, error) {
-	local_pid := int32(os.Getpid())
-	return &api.PidResponse{Pid: local_pid}, nil
+	localPid := int32(os.Getpid())
+	return &api.PidResponse{Pid: localPid}, nil
 }
 
 // RequestElection gRPC handler which allows other nodes to ask this node to start a new election

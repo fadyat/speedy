@@ -4,8 +4,10 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"github.com/fadyat/speedy/server"
 	"go.uber.org/zap"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,19 +22,25 @@ func main() {
 	initLogger()
 
 	// parse arguments
-	port := flag.Int("port", 5005, "port number for gRPC server to listen on")
+	port := flag.Int("port", 8080, "port number for gRPC server to listen on")
 	configFile := flag.String("config", "", "filename of JSON config file with the info for initial nodes")
 
 	flag.Parse()
 
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
+	if err != nil {
+		panic(err)
+	}
+
 	// get new grpc id server
-	grpcServer, cacheServer := server.NewCacheServer(
+	grpcServer, cacheServer := server.NewGrpcServer(
 		*configFile,
 		server.DYNAMIC,
 	)
 
 	// run gRPC server
 	zap.S().Infof("Running gRPC server on port %d...", *port)
+	go grpcServer.Serve(listener)
 
 	// register node with cluster
 	cacheServer.RegisterNodeInternal()

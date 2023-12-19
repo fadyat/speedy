@@ -13,6 +13,12 @@ import (
 // New nodes call this RPC on the leader when they come online.
 func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *api.Node) (*api.GenericResponse, error) {
 	// if we already have this node registered, return
+	if s.nodesConfig == nil {
+		s.nodesConfig, _ = node.NewNodesConfig(node.WithInitialState(""))
+	}
+	if s.nodesConfig.Nodes == nil {
+		s.nodesConfig.Nodes = make(node.Nodes)
+	}
 	if _, ok := s.nodesConfig.Nodes[nodeInfo.Id]; ok {
 		zap.S().Infof("Node %s already part of cluster", nodeInfo.Id)
 		return &api.GenericResponse{Data: SUCCESS}, nil
@@ -24,11 +30,11 @@ func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *api
 	// send update to other nodes in cluster
 	nodes := make([]*api.Node, 0)
 	for _, node := range s.nodesConfig.Nodes {
-		nodes = append(nodes, &api.Node{Id: node.Id, Host: node.Host, Port: node.Port})
+		nodes = append(nodes, &api.Node{Id: node.ID, Host: node.Host, Port: node.Port})
 	}
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 		func() {
@@ -39,7 +45,7 @@ func (s *CacheServer) RegisterNodeWithCluster(ctx context.Context, nodeInfo *api
 			cfg := api.ClusterConfig{Nodes: nodes}
 			c, err := s.NewCacheClient(node.Host, int(node.Port))
 			if err != nil {
-				zap.S().Error("unable to connect to node %s", node.Id)
+				zap.S().Error("unable to connect to node %s", node.ID)
 				return
 			}
 			_, err = c.UpdateClusterConfig(reqCtx, &cfg)
@@ -68,11 +74,11 @@ func (s *CacheServer) updateClusterConfigInternal() {
 	// send update to other nodes in cluster
 	nodes := make([]*api.Node, 0)
 	for _, node := range s.nodesConfig.Nodes {
-		nodes = append(nodes, &api.Node{Id: node.Id, Host: node.Host, Port: node.Port})
+		nodes = append(nodes, &api.Node{Id: node.ID, Host: node.Host, Port: node.Port})
 	}
 	for _, node := range s.nodesConfig.Nodes {
 		// skip self
-		if node.Id == s.nodeID {
+		if node.ID == s.nodeID {
 			continue
 		}
 
@@ -87,13 +93,13 @@ func (s *CacheServer) updateClusterConfigInternal() {
 
 			// skip node if error
 			if err != nil {
-				zap.S().Errorf("unable to connect to node %s", node.Id)
+				zap.S().Errorf("unable to connect to node %s", node.ID)
 				return
 			}
 
 			_, err = c.UpdateClusterConfig(reqCtx, &cfg)
 			if err != nil {
-				zap.S().Infof("error sending cluster config to node %s: %v", node.Id, err)
+				zap.S().Infof("error sending cluster config to node %s: %v", node.ID, err)
 			}
 		}()
 	}

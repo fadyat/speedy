@@ -10,4 +10,4 @@ nodes:
   4:
     id: 4
     host: localhost
-    port: 9000
+    port: 8084
