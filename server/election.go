@@ -253,7 +253,7 @@ func (s *CacheServer) IsLeaderAlive() bool {
 	}
 
 	// new identity service client
-	ctx, cancel := context.WithTimeout(context.Background(), 3*Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 
 	// make status request rpc

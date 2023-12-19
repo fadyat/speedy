@@ -44,15 +44,6 @@ type CacheServer struct {
 	electionStatus bool
 }
 
-type Pair struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type ServerComponents struct {
-	GrpcServer *grpc.Server
-}
-
 const (
 	DYNAMIC = "DYNAMIC"
 )
@@ -185,7 +176,7 @@ func (s *CacheServer) NewCacheClient(serverHost string, serverPort int) (api.Cac
 	// set up connection
 	addr := fmt.Sprintf("%s:%d", serverHost, serverPort)
 
-	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), kacp.Timeout)
 	defer cancel()
 
 	conn, err := grpc.DialContext(
