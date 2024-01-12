@@ -5,7 +5,7 @@ import "github.com/fadyat/speedy/api"
 type nodeDiff struct {
 	id    string
 	host  string
-	port  int
+	port  uint32
 	state nodeState
 }
 
@@ -24,7 +24,7 @@ func newNodeDiffFromApiNode(
 	return &nodeDiff{
 		id:    n.Id,
 		host:  n.Host,
-		port:  int(n.Port),
+		port:  n.Port,
 		state: state,
 	}
 }
