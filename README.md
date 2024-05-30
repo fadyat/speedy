@@ -5,12 +5,13 @@ Distributed cache implemented in Go.
 Features:
 
 - Client-side consistent hashing
-- Distributed leader election via Raft (maybe Paxos/Bully)
+- Distributed leader election via Bully algorithm
+- LRU eviction policy
 - gRPC for communication between nodes
 
 <img src="./docs/images/speedy.png" width="700">
 
-Docs:
+Design docs with research of potential candidates:
 
 - [Sharding algorithms](./docs/sharding.md)
 - [Leader election](./docs/leader-election.md)
