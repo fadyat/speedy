@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fadyat/speedy/api"
-	"github.com/fadyat/speedy/pkg"
 	"github.com/fadyat/speedy/sharding"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"gopkg.in/yaml.v3"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -24,10 +26,14 @@ const (
 // initialize the system, to update the nodes information, and to
 // retrieve the current state of the system.
 type NodesConfig struct {
-	Nodes        Nodes `yaml:"nodes"`
-	keys         []string
-	mx           sync.RWMutex
-	nodeSelector func(nc *NodesConfig) *Node
+	Nodes         Nodes `yaml:"nodes"`
+	keys          []string
+	mx            sync.RWMutex
+	nodeSelector  func(nc *NodesConfig) *Node
+	ServerLogfile string `yaml:"server_logfile"`
+	ServerErrfile string `yaml:"server_errfile"`
+	ClientLogfile string `yaml:"client_logfile"`
+	ClientErrfile string `yaml:"client_errfile"`
 }
 
 type NodesConfigOption func(*NodesConfig) error
@@ -41,8 +47,8 @@ func NewNodesConfig(
 		nodeSelector: oneAfterAnotherNodeSelector,
 	}
 
-	for _, o := range opts {
-		if err := o(c); err != nil {
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
 			return nil, err
 		}
 	}
@@ -59,13 +65,26 @@ func (c *NodesConfig) GetNode(id string) *Node {
 
 func WithInitialState(path string) NodesConfigOption {
 	return func(c *NodesConfig) error {
-		cfg, err := pkg.FromYaml[NodesConfig](path)
+		inode, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
-			return fmt.Errorf("failed to setup nodes from config: %w", err)
+			return fmt.Errorf("failed to read initial state file: %w", err)
 		}
 
-		c.Nodes = cfg.Nodes
-		c.keys = c.Nodes.NodeIDs()
+		// todo: rewrite this peace of shit
+		var nodes = struct {
+			Nodes map[string]*Node `yaml:"nodes"`
+		}{}
+
+		if err = yaml.Unmarshal(inode, &nodes); err != nil {
+			return fmt.Errorf("failed to unmarshal initial state file: %w", err)
+		}
+
+		c.Nodes = nodes.Nodes
+		c.keys = make([]string, 0, len(c.Nodes))
+		for _, n := range c.Nodes {
+			c.keys = append(c.keys, n.ID)
+		}
+
 		for _, n := range c.Nodes {
 			if e := n.RefreshClient(context.Background()); e != nil {
 				return fmt.Errorf("failed to refresh client: %w", e)
@@ -94,7 +113,7 @@ func (c *NodesConfig) Sync() (bool, error) {
 		return false, errors.New("failed to select node")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	desiredConfig, err := sourceOfTruth.Request().GetClusterConfig(ctx, &emptypb.Empty{})

@@ -23,26 +23,26 @@ const (
 
 	singleNodeConfig = `
 nodes:
-  1:
-    id: 1
-    host: localhost
-    port: 50051
+ 1:
+   id: 1
+   host: localhost
+   port: 50051
 `
 
 	multipleNodesConfig = `
 nodes:
-  1:
-    id: 1
-    host: localhost
-    port: 50051
-  2:
-    id: 2
-    host: localhost
-    port: 50052
-  3:
-    id: 3
-    host: localhost
-    port: 50053`
+ 1:
+   id: 1
+   host: localhost
+   port: 50051
+ 2:
+   id: 2
+   host: localhost
+   port: 50052
+ 3:
+   id: 3
+   host: localhost
+   port: 50053`
 )
 
 func withTemporaryFile(t *testing.T, content string) (path string, cleanup func()) {
